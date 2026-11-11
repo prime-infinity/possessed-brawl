@@ -4,6 +4,9 @@
  * Core interfaces and types used throughout the application.
  */
 
+// Re-export pose-specific types and constants
+export * from './pose';
+
 /**
  * A single body landmark point from MediaPipe Pose
  */

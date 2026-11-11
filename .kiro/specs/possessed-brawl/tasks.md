@@ -51,7 +51,7 @@ The implementation uses **TypeScript** for type safety, **MediaPipe Pose** for b
 #### Pose Detection and Smoothing
 
 - [ ] 5. Implement Pose_Detector component
-  - [ ] 5.1 Create TypeScript interfaces for Landmarks, Landmark, and PoseDetector
+  - [x] 5.1 Create TypeScript interfaces for Landmarks, Landmark, and PoseDetector
     - Define types matching MediaPipe Pose output format (33 landmarks with x, y, z, visibility)
     - Define landmark index constants (NOSE, LEFT_WRIST, RIGHT_WRIST, etc.)
     - _Requirements: 1.3_
