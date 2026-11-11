@@ -1,0 +1,26 @@
+{
+  "name": "possessed-brawl",
+  "version": "1.0.0",
+  "description": "Browser-based stick-figure fighting game controlled through webcam pose detection",
+  "type": "module",
+  "scripts": {
+    "dev": "vite",
+    "build": "tsc && vite build",
+    "preview": "vite preview",
+    "test": "vitest run",
+    "test:watch": "vitest",
+    "lint": "eslint . --ext .ts,.tsx",
+    "format": "prettier --write \"src/**/*.{ts,tsx}\""
+  },
+  "keywords": [
+    "game",
+    "pose-detection",
+    "mediapipe",
+    "browser",
+    "hackathon"
+  ],
+  "author": "",
+  "license": "MIT",
+  "devDependencies": {},
+  "dependencies": {}
+}

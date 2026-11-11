@@ -1,0 +1,165 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+  <meta charset="UTF-8" />
+  <meta name="viewport" content="width=device-width, initial-scale=1.0, user-scalable=no, viewport-fit=cover" />
+  <meta name="mobile-web-app-capable" content="yes" />
+  <meta name="apple-mobile-web-app-capable" content="yes" />
+  <meta name="apple-mobile-web-app-status-bar-style" content="black-translucent" />
+  <meta name="theme-color" content="#000000" />
+  <title>Possessed Brawl</title>
+  <style>
+    * {
+      margin: 0;
+      padding: 0;
+      box-sizing: border-box;
+    }
+
+    html, body {
+      width: 100%;
+      height: 100%;
+      overflow: hidden;
+      background-color: #000;
+      font-family: -apple-system, BlinkMacSystemFont, 'Segoe UI', Arial, sans-serif;
+    }
+
+    /* Landscape orientation enforcement */
+    @media (orientation: portrait) {
+      #rotate-prompt {
+        display: flex !important;
+      }
+      #app {
+        display: none !important;
+      }
+    }
+
+    #rotate-prompt {
+      display: none;
+      position: fixed;
+      inset: 0;
+      background-color: #000;
+      color: #fff;
+      flex-direction: column;
+      align-items: center;
+      justify-content: center;
+      text-align: center;
+      padding: 20px;
+      z-index: 9999;
+    }
+
+    #rotate-prompt svg {
+      width: 80px;
+      height: 80px;
+      animation: rotate 2s ease-in-out infinite;
+    }
+
+    @keyframes rotate {
+      0%, 100% { transform: rotate(0deg); }
+      50% { transform: rotate(90deg); }
+    }
+
+    #app {
+      width: 100%;
+      height: 100%;
+      display: flex;
+      flex-direction: column;
+      align-items: center;
+      justify-content: center;
+    }
+
+    #canvas {
+      display: block;
+      max-width: 100%;
+      max-height: 100%;
+      background-color: #1a1a1a;
+    }
+
+    #video {
+      display: none;
+    }
+
+    .screen {
+      display: none;
+      width: 100%;
+      height: 100%;
+      flex-direction: column;
+      align-items: center;
+      justify-content: center;
+      padding: 20px;
+      color: #fff;
+      text-align: center;
+    }
+
+    .screen.active {
+      display: flex;
+    }
+
+    button {
+      margin-top: 20px;
+      padding: 12px 32px;
+      font-size: 16px;
+      background-color: #007bff;
+      color: #fff;
+      border: none;
+      border-radius: 6px;
+      cursor: pointer;
+      transition: background-color 0.2s;
+    }
+
+    button:hover {
+      background-color: #0056b3;
+    }
+
+    button:active {
+      background-color: #004085;
+    }
+
+    #loading-screen h1 {
+      margin-bottom: 20px;
+      font-size: 32px;
+    }
+
+    #loading-screen p {
+      font-size: 18px;
+      color: #aaa;
+    }
+  </style>
+</head>
+<body>
+  <!-- Rotate to landscape prompt -->
+  <div id="rotate-prompt">
+    <svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2">
+      <rect x="2" y="3" width="20" height="14" rx="2"/>
+      <path d="M8 21h8"/>
+      <path d="M12 17v4"/>
+    </svg>
+    <h2 style="margin-top: 20px;">Please rotate your device</h2>
+    <p style="margin-top: 10px; color: #aaa;">This game works best in landscape orientation</p>
+  </div>
+
+  <!-- Main app container -->
+  <div id="app">
+    <!-- Loading/Permission Screen -->
+    <div id="loading-screen" class="screen active">
+      <h1>Possessed Brawl</h1>
+      <p>Control your fighter with your body movements</p>
+      <button id="start-btn">Start Game</button>
+    </div>
+
+    <!-- Calibration Screen -->
+    <div id="calibration-screen" class="screen">
+      <h2>Calibration</h2>
+      <p id="calibration-instructions">Stand in a boxing guard position with hands up near your face</p>
+      <div id="calibration-progress" style="margin-top: 20px; display: none;">
+        <p>Calibrating... <span id="calibration-percentage">0%</span></p>
+      </div>
+    </div>
+
+    <!-- Game Screen -->
+    <canvas id="canvas"></canvas>
+    <video id="video" autoplay playsinline></video>
+  </div>
+
+  <script type="module" src="/src/main.ts"></script>
+</body>
+</html>

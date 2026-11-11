@@ -1,0 +1,3 @@
+# Components directory
+# Stage 1: Pose_Detector, Calibrator, Move_Recognizer, Debug Renderer
+# Stage 2: Game_Engine, Physics_Engine, AI_Controller, Audio_Manager
