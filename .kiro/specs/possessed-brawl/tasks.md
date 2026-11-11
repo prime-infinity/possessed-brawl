@@ -56,7 +56,7 @@ The implementation uses **TypeScript** for type safety, **MediaPipe Pose** for b
     - Define landmark index constants (NOSE, LEFT_WRIST, RIGHT_WRIST, etc.)
     - _Requirements: 1.3_
 
-  - [ ] 5.2 Implement webcam initialization and permission handling
+  - [x] 5.2 Implement webcam initialization and permission handling
     - Request user media access with appropriate constraints for mobile
     - Handle permission denial with clear error messages and retry option
     - Mirror video display so left corresponds to on-screen right
