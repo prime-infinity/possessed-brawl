@@ -84,6 +84,18 @@
         "chatSessionId": "sess_d2f1fb0a-a067-4a3d-ab3f-0bc7f4ec6af4",
         "timestamp": 1794396976921
       }
+    ],
+    "5.4 Implement frame processing and landmark extraction": [
+      {
+        "executionId": "abc6a8d7-5e29-40c3-955b-87126c8521fe",
+        "chatSessionId": "sess_84bde7aa-06dc-487d-891e-8f97c59a57e7",
+        "timestamp": 1794397194633
+      },
+      {
+        "executionId": "abc6a8d7-5e29-40c3-955b-87126c8521fe",
+        "chatSessionId": "sess_84bde7aa-06dc-487d-891e-8f97c59a57e7",
+        "timestamp": 1794397346736
+      }
     ]
   }
 }

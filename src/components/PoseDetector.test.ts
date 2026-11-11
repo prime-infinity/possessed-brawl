@@ -639,4 +639,219 @@ describe('PoseDetector', () => {
       expect(config.smoothingAlpha).toBe(0.3); // Unchanged
     });
   });
+
+  describe('Task 5.4: Frame processing and landmark extraction', () => {
+    it('should extract waist-up landmarks (indices 0-16)', async () => {
+      const { PoseLandmarker } = await import('@mediapipe/tasks-vision');
+      
+      // Create all 33 landmarks with high visibility
+      const mockLandmarks = Array(33).fill(null).map((_, i) => ({
+        x: 0.5 + (i * 0.01),  // Unique positions
+        y: 0.5 + (i * 0.01),
+        z: 0.0,
+        visibility: 0.9
+      }));
+      
+      const mockDetectForVideo = vi.fn().mockReturnValue({
+        landmarks: [mockLandmarks]
+      });
+      
+      vi.mocked(PoseLandmarker.createFromOptions).mockResolvedValue({
+        detectForVideo: mockDetectForVideo,
+        close: vi.fn()
+      } as any);
+
+      setTimeout(() => {
+        if (mockVideoElement.onloadedmetadata) {
+          mockVideoElement.onloadedmetadata({} as Event);
+        }
+      }, 0);
+
+      await detector.initialize();
+      const result = await detector.processFrame();
+      
+      // Should return all 33 landmarks (MediaPipe full set)
+      // The implementation extracts all landmarks but only checks visibility on waist-up indices
+      expect(result).not.toBeNull();
+      expect(result?.points).toHaveLength(33);
+      
+      // Verify waist-up landmarks (indices 0-16) are present
+      // Key waist-up indices include: nose(0), shoulders(11-12), elbows(13-14), wrists(15-16)
+      expect(result?.points[0]).toBeDefined(); // Nose
+      expect(result?.points[11]).toBeDefined(); // Left shoulder
+      expect(result?.points[12]).toBeDefined(); // Right shoulder
+      expect(result?.points[13]).toBeDefined(); // Left elbow
+      expect(result?.points[14]).toBeDefined(); // Right elbow
+      expect(result?.points[15]).toBeDefined(); // Left wrist
+      expect(result?.points[16]).toBeDefined(); // Right wrist
+    });
+
+    it('should filter landmarks by visibility threshold (default 0.5)', async () => {
+      const { PoseLandmarker } = await import('@mediapipe/tasks-vision');
+      
+      // Create landmarks with mixed visibility
+      const mockLandmarks = Array(33).fill(null).map((_, i) => {
+        // Key joints (0, 11-16) have varying visibility
+        const keyJointIndices = [0, 11, 12, 13, 14, 15, 16];
+        const isKeyJoint = keyJointIndices.includes(i);
+        
+        return {
+          x: 0.5,
+          y: 0.5,
+          z: 0.0,
+          visibility: isKeyJoint && i === 15 ? 0.3 : 0.9  // Left wrist has low visibility
+        };
+      });
+      
+      const mockDetectForVideo = vi.fn().mockReturnValue({
+        landmarks: [mockLandmarks]
+      });
+      
+      vi.mocked(PoseLandmarker.createFromOptions).mockResolvedValue({
+        detectForVideo: mockDetectForVideo,
+        close: vi.fn()
+      } as any);
+
+      setTimeout(() => {
+        if (mockVideoElement.onloadedmetadata) {
+          mockVideoElement.onloadedmetadata({} as Event);
+        }
+      }, 0);
+
+      await detector.initialize();
+      const result = await detector.processFrame();
+      
+      // Should return null because left wrist (key joint at index 15) has visibility < 0.5
+      expect(result).toBeNull();
+    });
+
+    it('should only process frames when all key waist-up joints are visible', async () => {
+      const { PoseLandmarker } = await import('@mediapipe/tasks-vision');
+      
+      // Create landmarks where all key joints meet visibility threshold
+      const mockLandmarksGood = Array(33).fill(null).map((_, i) => ({
+        x: 0.5,
+        y: 0.5,
+        z: 0.0,
+        visibility: 0.9  // All above threshold
+      }));
+
+      // Create landmarks where one key joint is below threshold
+      const mockLandmarksBad = Array(33).fill(null).map((_, i) => {
+        const isNose = i === 0;
+        return {
+          x: 0.5,
+          y: 0.5,
+          z: 0.0,
+          visibility: isNose ? 0.4 : 0.9  // Nose below threshold
+        };
+      });
+      
+      const mockDetectForVideo = vi.fn()
+        .mockReturnValueOnce({ landmarks: [mockLandmarksGood] })
+        .mockReturnValueOnce({ landmarks: [mockLandmarksBad] });
+      
+      vi.mocked(PoseLandmarker.createFromOptions).mockResolvedValue({
+        detectForVideo: mockDetectForVideo,
+        close: vi.fn()
+      } as any);
+
+      setTimeout(() => {
+        if (mockVideoElement.onloadedmetadata) {
+          mockVideoElement.onloadedmetadata({} as Event);
+        }
+      }, 0);
+
+      await detector.initialize();
+      
+      // First frame with good visibility should succeed
+      const result1 = await detector.processFrame();
+      expect(result1).not.toBeNull();
+      expect(result1?.points).toHaveLength(33);
+      
+      // Second frame with bad visibility should return null
+      const result2 = await detector.processFrame();
+      expect(result2).toBeNull();
+    });
+
+    it('should respect custom visibility threshold', async () => {
+      const { PoseLandmarker } = await import('@mediapipe/tasks-vision');
+      
+      // Create detector with higher threshold
+      detector = new PoseDetector({ visibilityThreshold: 0.8 });
+      
+      // Create landmarks with visibility = 0.7 (above default 0.5, below custom 0.8)
+      const mockLandmarks = Array(33).fill(null).map(() => ({
+        x: 0.5,
+        y: 0.5,
+        z: 0.0,
+        visibility: 0.7
+      }));
+      
+      const mockDetectForVideo = vi.fn().mockReturnValue({
+        landmarks: [mockLandmarks]
+      });
+      
+      vi.mocked(PoseLandmarker.createFromOptions).mockResolvedValue({
+        detectForVideo: mockDetectForVideo,
+        close: vi.fn()
+      } as any);
+
+      setTimeout(() => {
+        if (mockVideoElement.onloadedmetadata) {
+          mockVideoElement.onloadedmetadata({} as Event);
+        }
+      }, 0);
+
+      await detector.initialize();
+      const result = await detector.processFrame();
+      
+      // Should return null because visibility (0.7) < threshold (0.8)
+      expect(result).toBeNull();
+    });
+
+    it('should process frames with appropriate timing for 20-30 fps target', async () => {
+      const { PoseLandmarker } = await import('@mediapipe/tasks-vision');
+      
+      const mockLandmarks = Array(33).fill(null).map(() => ({
+        x: 0.5,
+        y: 0.5,
+        z: 0.0,
+        visibility: 0.9
+      }));
+      
+      const mockDetectForVideo = vi.fn().mockReturnValue({
+        landmarks: [mockLandmarks]
+      });
+      
+      vi.mocked(PoseLandmarker.createFromOptions).mockResolvedValue({
+        detectForVideo: mockDetectForVideo,
+        close: vi.fn()
+      } as any);
+
+      setTimeout(() => {
+        if (mockVideoElement.onloadedmetadata) {
+          mockVideoElement.onloadedmetadata({} as Event);
+        }
+      }, 0);
+
+      await detector.initialize();
+      
+      // Process multiple frames and measure timing
+      const timestamps: number[] = [];
+      for (let i = 0; i < 5; i++) {
+        const start = performance.now();
+        await detector.processFrame();
+        const end = performance.now();
+        timestamps.push(end - start);
+      }
+      
+      // Each frame should process quickly (target: 33-50ms for 20-30 fps)
+      // In test environment with mocks, should be very fast
+      const avgTime = timestamps.reduce((a, b) => a + b, 0) / timestamps.length;
+      
+      // In mocked environment, processing should be nearly instant (< 10ms)
+      expect(avgTime).toBeLessThan(50);
+    });
+  });
 });
