@@ -72,6 +72,18 @@
         "chatSessionId": "sess_1a2e7a66-a1da-4f45-b66e-64c99cd42d70",
         "timestamp": 1794396397018
       }
+    ],
+    "5.3 Initialize MediaPipe Pose with lite model for mobile performance": [
+      {
+        "executionId": "cd83d137-9d05-43b6-a360-8cf125c280c9",
+        "chatSessionId": "sess_d2f1fb0a-a067-4a3d-ab3f-0bc7f4ec6af4",
+        "timestamp": 1794396547060
+      },
+      {
+        "executionId": "cd83d137-9d05-43b6-a360-8cf125c280c9",
+        "chatSessionId": "sess_d2f1fb0a-a067-4a3d-ab3f-0bc7f4ec6af4",
+        "timestamp": 1794396976921
+      }
     ]
   }
 }

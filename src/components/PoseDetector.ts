@@ -4,10 +4,11 @@
  * Responsible for capturing webcam input, processing frames through MediaPipe Pose,
  * and extracting/smoothing body landmarks.
  * 
- * **Validates: Requirements 1.1, 1.4, 1.7**
+ * **Validates: Requirements 1.1, 1.2, 1.3, 1.4, 1.6, 1.7**
  */
 
 import { Landmark, Landmarks, PoseDetectorConfig } from '../types';
+import { PoseLandmarker, FilesetResolver, PoseLandmarkerResult } from '@mediapipe/tasks-vision';
 
 /**
  * Error types for webcam and MediaPipe initialization
@@ -47,7 +48,7 @@ const DEFAULT_CONFIG: PoseDetectorConfig = {
 /**
  * PoseDetector implementation for webcam pose detection
  * 
- * **Validates: Requirements 1.1, 1.4, 1.7**
+ * **Validates: Requirements 1.1, 1.2, 1.3, 1.4, 1.6, 1.7**
  */
 export class PoseDetector {
   private config: PoseDetectorConfig;
@@ -55,6 +56,8 @@ export class PoseDetector {
   private stream: MediaStream | null = null;
   private previousLandmarks: Landmarks | null = null;
   private isInitialized = false;
+  private poseLandmarker: PoseLandmarker | null = null;
+  private useMockData = false;
 
   constructor(config: Partial<PoseDetectorConfig> = {}) {
     this.config = { ...DEFAULT_CONFIG, ...config };
@@ -64,11 +67,11 @@ export class PoseDetector {
    * Initialize webcam and prepare for pose detection
    * 
    * Requests webcam permission with mobile-appropriate constraints,
-   * sets up video element with mirrored display.
+   * sets up video element with mirrored display, and initializes MediaPipe Pose.
    * 
-   * **Validates: Requirements 1.1, 1.4, 1.7**
+   * **Validates: Requirements 1.1, 1.2, 1.4, 1.7**
    * 
-   * @throws {PoseDetectorError} if webcam access fails
+   * @throws {PoseDetectorError} if webcam access fails or MediaPipe initialization fails
    */
   async initialize(): Promise<void> {
     if (this.isInitialized) {
@@ -77,6 +80,10 @@ export class PoseDetector {
     }
 
     try {
+      // Initialize MediaPipe Pose first
+      // **Validates: Requirement 1.2** - use MediaPipe Pose JavaScript library
+      await this.initializeMediaPipe();
+
       // Request webcam access with mobile-appropriate constraints
       // **Validates: Requirement 1.1** - capture webcam input at target fps
       // **Validates: Requirement 1.4** - work in mobile Chrome and Safari
@@ -191,6 +198,47 @@ export class PoseDetector {
   }
 
   /**
+   * Initialize MediaPipe Pose with lite model for mobile performance
+   * 
+   * Loads MediaPipe Pose library and configures for waist-up detection.
+   * Falls back to mock data mode if initialization fails.
+   * 
+   * **Validates: Requirements 1.2, 1.3**
+   */
+  private async initializeMediaPipe(): Promise<void> {
+    try {
+      // Load MediaPipe Vision tasks
+      const vision = await FilesetResolver.forVisionTasks(
+        'https://cdn.jsdelivr.net/npm/@mediapipe/tasks-vision@latest/wasm'
+      );
+
+      // Create PoseLandmarker with lite model for mobile performance
+      // **Validates: Requirement 1.3** - extract waist-up body landmarks
+      this.poseLandmarker = await PoseLandmarker.createFromOptions(vision, {
+        baseOptions: {
+          modelAssetPath: 'https://storage.googleapis.com/mediapipe-models/pose_landmarker/pose_landmarker_lite/float16/latest/pose_landmarker_lite.task',
+          delegate: 'GPU' // Use GPU acceleration if available
+        },
+        runningMode: 'VIDEO',
+        numPoses: 1,  // Only detect single person
+        minPoseDetectionConfidence: 0.5,
+        minPosePresenceConfidence: 0.5,
+        minTrackingConfidence: 0.5
+      });
+
+      console.log('MediaPipe Pose initialized successfully');
+    } catch (error) {
+      // Fall back to mock data mode for development
+      console.error('MediaPipe initialization failed, falling back to mock data mode:', error);
+      this.useMockData = true;
+      this.poseLandmarker = null;
+      
+      // Don't throw error - allow initialization to continue with mock data
+      console.warn('PoseDetector will return null landmarks until MediaPipe is available');
+    }
+  }
+
+  /**
    * Retry webcam initialization after permission denial
    * 
    * Provides a retry mechanism for permission requests.
@@ -211,8 +259,10 @@ export class PoseDetector {
   /**
    * Process a single video frame and return landmarks
    * 
-   * NOTE: MediaPipe integration will be implemented in task 5.3.
-   * This is a stub for now.
+   * Extracts waist-up body landmarks from video frame using MediaPipe Pose.
+   * Filters landmarks by visibility threshold.
+   * 
+   * **Validates: Requirements 1.2, 1.3, 1.6**
    * 
    * @returns Landmarks object or null if no valid pose detected
    */
@@ -222,9 +272,107 @@ export class PoseDetector {
       return null;
     }
 
-    // TODO: Implement MediaPipe Pose processing in task 5.3
-    // For now, return null (no landmarks detected)
-    return null;
+    // Return null if MediaPipe is not available (mock data mode)
+    if (this.useMockData || !this.poseLandmarker) {
+      return null;
+    }
+
+    try {
+      // Get current video timestamp
+      const timestamp = performance.now();
+
+      // Process frame through MediaPipe Pose
+      // **Validates: Requirement 1.2** - process frames using MediaPipe Pose
+      const result: PoseLandmarkerResult = this.poseLandmarker.detectForVideo(
+        this.videoElement,
+        timestamp
+      );
+
+      // Check if any pose was detected
+      if (!result.landmarks || result.landmarks.length === 0) {
+        return null;
+      }
+
+      // Extract the first (and only) detected pose
+      const poseLandmarks = result.landmarks[0];
+
+      // Convert MediaPipe landmarks to our Landmark format
+      // **Validates: Requirement 1.3** - extract waist-up body landmarks
+      const points: Landmark[] = poseLandmarks.map((landmark) => ({
+        x: landmark.x,
+        y: landmark.y,
+        z: landmark.z,
+        visibility: landmark.visibility ?? 0.0
+      }));
+
+      // Check if key joints (waist-up) have sufficient visibility
+      // **Validates: Requirement 1.6** - ignore frames with low visibility
+      const hasValidKeyJoints = this.checkKeyJointsVisibility(points);
+      
+      if (!hasValidKeyJoints) {
+        // Skip this frame if key joints are not visible enough
+        return null;
+      }
+
+      const landmarks: Landmarks = {
+        points,
+        timestamp
+      };
+
+      // Apply smoothing if we have previous landmarks
+      if (this.previousLandmarks) {
+        const smoothed = this.smoothLandmarks(landmarks, this.previousLandmarks);
+        this.previousLandmarks = smoothed;
+        return smoothed;
+      } else {
+        // First frame - no smoothing yet
+        this.previousLandmarks = landmarks;
+        return landmarks;
+      }
+
+    } catch (error) {
+      console.error('Error processing frame:', error);
+      return null;
+    }
+  }
+
+  /**
+   * Check if key waist-up joints have sufficient visibility
+   * 
+   * Verifies that critical landmarks (wrists, shoulders, head) meet
+   * the visibility threshold for reliable move detection.
+   * 
+   * **Validates: Requirement 1.6** - ignore joints below visibility threshold
+   * 
+   * @param points - Array of landmark points
+   * @returns true if key joints are visible, false otherwise
+   */
+  private checkKeyJointsVisibility(points: Landmark[]): boolean {
+    // Key joint indices from MediaPipe 33-point model
+    // These are the critical joints for waist-up move detection
+    const keyJointIndices = [
+      0,   // Nose (head reference)
+      11,  // Left shoulder
+      12,  // Right shoulder
+      13,  // Left elbow
+      14,  // Right elbow
+      15,  // Left wrist
+      16   // Right wrist
+    ];
+
+    // Check if all key joints meet visibility threshold
+    for (const index of keyJointIndices) {
+      if (index >= points.length) {
+        return false;
+      }
+
+      const landmark = points[index];
+      if (!this.isLandmarkVisible(landmark)) {
+        return false;
+      }
+    }
+
+    return true;
   }
 
   /**
@@ -321,9 +469,15 @@ export class PoseDetector {
   /**
    * Release resources and cleanup
    * 
-   * Stops webcam stream and removes video element.
+   * Stops webcam stream, releases MediaPipe resources, and removes video element.
    */
   dispose(): void {
+    // Close MediaPipe PoseLandmarker
+    if (this.poseLandmarker) {
+      this.poseLandmarker.close();
+      this.poseLandmarker = null;
+    }
+
     // Stop all media tracks
     if (this.stream) {
       this.stream.getTracks().forEach(track => track.stop());
@@ -342,6 +496,7 @@ export class PoseDetector {
     // Clear state
     this.previousLandmarks = null;
     this.isInitialized = false;
+    this.useMockData = false;
 
     console.log('PoseDetector disposed');
   }

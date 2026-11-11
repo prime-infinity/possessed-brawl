@@ -88,20 +88,24 @@ export function arbitraryHeadLandmark(): fc.Arbitrary<Landmark> {
  * This constrains the random values to be more anatomically plausible
  */
 export function arbitraryRealisticLandmarks(): fc.Arbitrary<Landmarks> {
+  // Create an array of 33 landmark generators
+  const landmarkGenerators = [
+    // Head landmarks (0-10)
+    ...Array(11).fill(0).map(() => arbitraryHeadLandmark()),
+    // Shoulder landmarks (11-12)
+    arbitraryShoulderLandmark(),
+    arbitraryShoulderLandmark(),
+    // Arm landmarks (13-22)
+    ...Array(10).fill(0).map(() => arbitraryWristLandmark()),
+    // Lower body landmarks (23-32)
+    ...Array(10).fill(0).map(() => arbitraryLandmark())
+  ];
+
   return fc.record({
-    points: fc.tuple(
-      // Head landmarks (0-10)
-      ...Array(11).fill(arbitraryHeadLandmark()),
-      // Shoulder landmarks (11-12)
-      arbitraryShoulderLandmark(),
-      arbitraryShoulderLandmark(),
-      // Arm landmarks (13-22)
-      ...Array(10).fill(arbitraryWristLandmark()),
-      // Lower body landmarks (23-32)
-      ...Array(10).fill(arbitraryLandmark())
-    ).map(tuple => [...tuple]),
+    points: fc.tuple(...landmarkGenerators as [fc.Arbitrary<Landmark>, ...fc.Arbitrary<Landmark>[]])
+      .map(tuple => [...tuple]),
     timestamp: fc.nat(),
-  });
+  }) as fc.Arbitrary<Landmarks>;
 }
 
 /**

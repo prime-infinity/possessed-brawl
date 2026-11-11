@@ -8,6 +8,21 @@ import { describe, it, expect, beforeEach, afterEach, vi } from 'vitest';
 import { PoseDetector, PoseDetectorError, PoseDetectorErrorType } from './PoseDetector';
 import type { Landmarks, Landmark } from '../types';
 
+// Mock MediaPipe tasks-vision module
+vi.mock('@mediapipe/tasks-vision', () => ({
+  FilesetResolver: {
+    forVisionTasks: vi.fn().mockResolvedValue({})
+  },
+  PoseLandmarker: {
+    createFromOptions: vi.fn().mockResolvedValue({
+      detectForVideo: vi.fn().mockReturnValue({
+        landmarks: []
+      }),
+      close: vi.fn()
+    })
+  }
+}));
+
 describe('PoseDetector', () => {
   let detector: PoseDetector;
   let mockStream: MediaStream;
@@ -390,7 +405,19 @@ describe('PoseDetector', () => {
       expect(result).toBeNull();
     });
 
-    it('should return null (stub implementation for task 5.2)', async () => {
+    it('should return null when no landmarks are detected', async () => {
+      const { PoseLandmarker } = await import('@mediapipe/tasks-vision');
+      
+      // Mock detectForVideo to return empty landmarks
+      const mockDetectForVideo = vi.fn().mockReturnValue({
+        landmarks: []
+      });
+      
+      vi.mocked(PoseLandmarker.createFromOptions).mockResolvedValue({
+        detectForVideo: mockDetectForVideo,
+        close: vi.fn()
+      } as any);
+
       setTimeout(() => {
         if (mockVideoElement.onloadedmetadata) {
           mockVideoElement.onloadedmetadata({} as Event);
@@ -400,8 +427,127 @@ describe('PoseDetector', () => {
       await detector.initialize();
       const result = await detector.processFrame();
       
-      // Stub implementation returns null until MediaPipe is integrated in task 5.3
       expect(result).toBeNull();
+    });
+
+    it('should extract and return landmarks when pose is detected with high visibility', async () => {
+      const { PoseLandmarker } = await import('@mediapipe/tasks-vision');
+      
+      // Mock landmarks with sufficient visibility for key joints
+      const mockLandmarks = Array(33).fill(null).map((_, i) => ({
+        x: 0.5,
+        y: 0.5,
+        z: 0.0,
+        visibility: 0.9
+      }));
+      
+      const mockDetectForVideo = vi.fn().mockReturnValue({
+        landmarks: [mockLandmarks]
+      });
+      
+      vi.mocked(PoseLandmarker.createFromOptions).mockResolvedValue({
+        detectForVideo: mockDetectForVideo,
+        close: vi.fn()
+      } as any);
+
+      setTimeout(() => {
+        if (mockVideoElement.onloadedmetadata) {
+          mockVideoElement.onloadedmetadata({} as Event);
+        }
+      }, 0);
+
+      await detector.initialize();
+      const result = await detector.processFrame();
+      
+      expect(result).not.toBeNull();
+      expect(result?.points).toHaveLength(33);
+      expect(result?.points[0].visibility).toBe(0.9);
+    });
+
+    it('should return null when key joints have low visibility', async () => {
+      const { PoseLandmarker } = await import('@mediapipe/tasks-vision');
+      
+      // Mock landmarks with low visibility for key joints
+      const mockLandmarks = Array(33).fill(null).map((_, i) => {
+        // Key joint indices: 0, 11, 12, 13, 14, 15, 16
+        const isKeyJoint = [0, 11, 12, 13, 14, 15, 16].includes(i);
+        return {
+          x: 0.5,
+          y: 0.5,
+          z: 0.0,
+          visibility: isKeyJoint ? 0.3 : 0.9  // Low visibility for key joints
+        };
+      });
+      
+      const mockDetectForVideo = vi.fn().mockReturnValue({
+        landmarks: [mockLandmarks]
+      });
+      
+      vi.mocked(PoseLandmarker.createFromOptions).mockResolvedValue({
+        detectForVideo: mockDetectForVideo,
+        close: vi.fn()
+      } as any);
+
+      setTimeout(() => {
+        if (mockVideoElement.onloadedmetadata) {
+          mockVideoElement.onloadedmetadata({} as Event);
+        }
+      }, 0);
+
+      await detector.initialize();
+      const result = await detector.processFrame();
+      
+      // Should return null because key joints don't meet visibility threshold
+      expect(result).toBeNull();
+    });
+
+    it('should apply smoothing to consecutive frames', async () => {
+      const { PoseLandmarker } = await import('@mediapipe/tasks-vision');
+      
+      // First frame landmarks
+      const mockLandmarks1 = Array(33).fill(null).map(() => ({
+        x: 0.0,
+        y: 0.0,
+        z: 0.0,
+        visibility: 0.9
+      }));
+      
+      // Second frame landmarks (different position)
+      const mockLandmarks2 = Array(33).fill(null).map(() => ({
+        x: 1.0,
+        y: 1.0,
+        z: 0.0,
+        visibility: 0.9
+      }));
+      
+      const mockDetectForVideo = vi.fn()
+        .mockReturnValueOnce({ landmarks: [mockLandmarks1] })
+        .mockReturnValueOnce({ landmarks: [mockLandmarks2] });
+      
+      vi.mocked(PoseLandmarker.createFromOptions).mockResolvedValue({
+        detectForVideo: mockDetectForVideo,
+        close: vi.fn()
+      } as any);
+
+      setTimeout(() => {
+        if (mockVideoElement.onloadedmetadata) {
+          mockVideoElement.onloadedmetadata({} as Event);
+        }
+      }, 0);
+
+      await detector.initialize();
+      
+      // Process first frame
+      const result1 = await detector.processFrame();
+      expect(result1?.points[0].x).toBe(0.0);
+      
+      // Process second frame
+      const result2 = await detector.processFrame();
+      
+      // Second frame should be smoothed (alpha=0.3)
+      // smoothed = 0.3 * raw + 0.7 * previous = 0.3 * 1.0 + 0.7 * 0.0 = 0.3
+      expect(result2?.points[0].x).toBeCloseTo(0.3, 5);
+      expect(result2?.points[0].y).toBeCloseTo(0.3, 5);
     });
   });
 
