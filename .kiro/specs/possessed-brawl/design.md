@@ -1901,3 +1901,23 @@ This gate ensures the core mechanic is solid before investing in game logic, phy
 **Document Version:** 1.0  
 **Last Updated:** 2025-01-XX  
 **Status:** Draft - Pending Stage 1 Implementation
+
+---
+
+## Implementation Preferences
+
+### Documentation Policy
+
+**Do NOT create additional documentation files during task execution:**
+- No task completion summaries (e.g., `TASK-X-COMPLETION.md`)
+- No visual guides or explanatory documents (e.g., `docs/task-X-visual-guide.md`)
+- No .txt or .md files explaining implementation details
+- All documentation is already captured in this design document, requirements.md, and tasks.md
+
+**Keep task summaries minimal:**
+- Brief confirmation of completion (1-2 sentences)
+- No detailed explanations or feature lists
+- All rationale and details are already documented in spec files
+
+These preferences ensure clean repository structure and avoid redundant documentation.
+

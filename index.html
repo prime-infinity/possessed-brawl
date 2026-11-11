@@ -7,12 +7,14 @@
   <meta name="apple-mobile-web-app-capable" content="yes" />
   <meta name="apple-mobile-web-app-status-bar-style" content="black-translucent" />
   <meta name="theme-color" content="#000000" />
+  <meta name="description" content="Possessed Brawl - A webcam-controlled fighting game" />
   <title>Possessed Brawl</title>
   <style>
     * {
       margin: 0;
       padding: 0;
       box-sizing: border-box;
+      -webkit-tap-highlight-color: transparent;
     }
 
     html, body {
@@ -21,9 +23,11 @@
       overflow: hidden;
       background-color: #000;
       font-family: -apple-system, BlinkMacSystemFont, 'Segoe UI', Arial, sans-serif;
+      touch-action: none;
+      overscroll-behavior: none;
     }
 
-    /* Landscape orientation enforcement */
+    /* Landscape orientation enforcement - Requirements 1.4, 1.5 */
     @media (orientation: portrait) {
       #rotate-prompt {
         display: flex !important;
@@ -58,6 +62,19 @@
       50% { transform: rotate(90deg); }
     }
 
+    #rotate-prompt h2 {
+      margin-top: 20px;
+      font-size: 24px;
+      font-weight: 600;
+    }
+
+    #rotate-prompt p {
+      margin-top: 10px;
+      color: #aaa;
+      font-size: 16px;
+    }
+
+    /* Main app container - responsive layout */
     #app {
       width: 100%;
       height: 100%;
@@ -65,19 +82,31 @@
       flex-direction: column;
       align-items: center;
       justify-content: center;
+      position: relative;
     }
 
+    /* Canvas for game rendering */
     #canvas {
-      display: block;
-      max-width: 100%;
-      max-height: 100%;
+      display: none;
+      width: 100%;
+      height: 100%;
       background-color: #1a1a1a;
+      image-rendering: crisp-edges;
     }
 
+    #canvas.active {
+      display: block;
+    }
+
+    /* Hidden video element for webcam feed */
     #video {
       display: none;
+      position: absolute;
+      opacity: 0;
+      pointer-events: none;
     }
 
+    /* Screen overlays */
     .screen {
       display: none;
       width: 100%;
@@ -88,22 +117,97 @@
       padding: 20px;
       color: #fff;
       text-align: center;
+      background-color: #000;
     }
 
     .screen.active {
       display: flex;
     }
 
-    button {
+    /* Loading/Permission Screen */
+    #loading-screen h1 {
+      margin-bottom: 20px;
+      font-size: clamp(28px, 6vw, 48px);
+      font-weight: 700;
+      color: #fff;
+    }
+
+    #loading-screen p {
+      font-size: clamp(14px, 3vw, 20px);
+      color: #aaa;
+      margin-bottom: 10px;
+      max-width: 600px;
+    }
+
+    #loading-screen .subtitle {
+      font-size: clamp(12px, 2.5vw, 16px);
+      color: #666;
+      margin-top: 10px;
+    }
+
+    #error-message {
+      display: none;
       margin-top: 20px;
-      padding: 12px 32px;
-      font-size: 16px;
+      padding: 15px;
+      background-color: #ff3333;
+      color: #fff;
+      border-radius: 6px;
+      max-width: 500px;
+      font-size: 14px;
+    }
+
+    #error-message.active {
+      display: block;
+    }
+
+    /* Calibration Screen */
+    #calibration-screen h2 {
+      font-size: clamp(24px, 5vw, 36px);
+      margin-bottom: 20px;
+      font-weight: 600;
+    }
+
+    #calibration-instructions {
+      font-size: clamp(14px, 3vw, 18px);
+      color: #ccc;
+      max-width: 600px;
+      line-height: 1.5;
+    }
+
+    #calibration-progress {
+      margin-top: 30px;
+      display: none;
+    }
+
+    #calibration-progress.active {
+      display: block;
+    }
+
+    #calibration-progress p {
+      font-size: clamp(16px, 3.5vw, 22px);
+      font-weight: 500;
+    }
+
+    #calibration-percentage {
+      color: #4CAF50;
+      font-weight: 700;
+    }
+
+    /* Buttons - mobile optimized touch targets */
+    button {
+      margin-top: 30px;
+      padding: 16px 40px;
+      font-size: clamp(14px, 3vw, 18px);
+      font-weight: 600;
       background-color: #007bff;
       color: #fff;
       border: none;
-      border-radius: 6px;
+      border-radius: 8px;
       cursor: pointer;
-      transition: background-color 0.2s;
+      transition: background-color 0.2s, transform 0.1s;
+      min-height: 48px;
+      min-width: 120px;
+      touch-action: manipulation;
     }
 
     button:hover {
@@ -112,52 +216,111 @@
 
     button:active {
       background-color: #004085;
+      transform: scale(0.98);
     }
 
-    #loading-screen h1 {
+    button:disabled {
+      background-color: #555;
+      cursor: not-allowed;
+      opacity: 0.6;
+    }
+
+    /* Loading spinner */
+    .spinner {
+      display: inline-block;
+      width: 40px;
+      height: 40px;
+      border: 4px solid rgba(255, 255, 255, 0.3);
+      border-top-color: #fff;
+      border-radius: 50%;
+      animation: spin 0.8s linear infinite;
       margin-bottom: 20px;
-      font-size: 32px;
     }
 
-    #loading-screen p {
-      font-size: 18px;
-      color: #aaa;
+    @keyframes spin {
+      to { transform: rotate(360deg); }
+    }
+
+    /* Performance warning */
+    #performance-warning {
+      display: none;
+      position: fixed;
+      top: 10px;
+      left: 50%;
+      transform: translateX(-50%);
+      background-color: rgba(255, 153, 0, 0.9);
+      color: #fff;
+      padding: 10px 20px;
+      border-radius: 6px;
+      font-size: 14px;
+      z-index: 1000;
+    }
+
+    #performance-warning.active {
+      display: block;
+    }
+
+    /* Responsive adjustments for very small screens */
+    @media (max-height: 400px) {
+      .screen {
+        padding: 10px;
+      }
+      
+      button {
+        margin-top: 15px;
+        padding: 12px 24px;
+      }
+
+      #loading-screen h1 {
+        margin-bottom: 10px;
+      }
     }
   </style>
 </head>
 <body>
-  <!-- Rotate to landscape prompt -->
+  <!-- Rotate to landscape prompt - Requirement 1.5 -->
   <div id="rotate-prompt">
     <svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2">
       <rect x="2" y="3" width="20" height="14" rx="2"/>
       <path d="M8 21h8"/>
       <path d="M12 17v4"/>
     </svg>
-    <h2 style="margin-top: 20px;">Please rotate your device</h2>
-    <p style="margin-top: 10px; color: #aaa;">This game works best in landscape orientation</p>
+    <h2>Please rotate your device</h2>
+    <p>This game works best in landscape orientation</p>
   </div>
 
-  <!-- Main app container -->
+  <!-- Performance warning overlay -->
+  <div id="performance-warning">
+    Low FPS detected. Consider closing other apps.
+  </div>
+
+  <!-- Main app container - Requirement 1.4 responsive layout -->
   <div id="app">
     <!-- Loading/Permission Screen -->
     <div id="loading-screen" class="screen active">
       <h1>Possessed Brawl</h1>
       <p>Control your fighter with your body movements</p>
+      <p class="subtitle">Requires webcam access • Works on Chrome v100+ and Safari v15+</p>
       <button id="start-btn">Start Game</button>
+      <div id="error-message"></div>
     </div>
 
     <!-- Calibration Screen -->
     <div id="calibration-screen" class="screen">
       <h2>Calibration</h2>
       <p id="calibration-instructions">Stand in a boxing guard position with hands up near your face</p>
-      <div id="calibration-progress" style="margin-top: 20px; display: none;">
+      <div id="calibration-progress">
+        <div class="spinner"></div>
         <p>Calibrating... <span id="calibration-percentage">0%</span></p>
       </div>
+      <button id="retry-calibration-btn" style="display: none;">Retry Calibration</button>
     </div>
 
-    <!-- Game Screen -->
+    <!-- Game Screen - Canvas for rendering -->
     <canvas id="canvas"></canvas>
-    <video id="video" autoplay playsinline></video>
+    
+    <!-- Hidden video element for webcam feed - Requirement 1.7 mirrored -->
+    <video id="video" autoplay playsinline muted></video>
   </div>
 
   <script type="module" src="/src/main.ts"></script>

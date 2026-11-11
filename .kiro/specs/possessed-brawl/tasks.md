@@ -30,7 +30,7 @@ The implementation uses **TypeScript** for type safety, **MediaPipe Pose** for b
   - Install ESLint and Prettier for code quality
   - _Requirements: 1.2, 20.1-20.7, 21.1-21.5_
 
-- [ ] 3. Create HTML foundation and Canvas setup
+- [x] 3. Create HTML foundation and Canvas setup
   - Create `index.html` with Canvas element for rendering
   - Create video element (hidden) for webcam feed
   - Add CSS for landscape orientation enforcement with user prompt
