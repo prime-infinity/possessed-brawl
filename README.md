@@ -9,7 +9,7 @@ Control your fighter using your body movements captured through your device's we
 ## Requirements
 
 - **Browser**: Chrome v100+ (Android) or Safari v15+ (iOS)
-- **Connection**: HTTPS (required for webcam access)
+- **Connection**: HTTP for localhost development, HTTPS for mobile device testing
 - **Orientation**: Landscape mode
 - **Performance**: Mid-range mobile device or better
 
@@ -32,10 +32,9 @@ Control your fighter using your body movements captured through your device's we
    ```
 
 4. Open the game in your browser:
-   - Local: `https://localhost:3000`
-   - Network: `https://<your-ip>:3000` (for mobile testing)
+   - Local: `http://localhost:3000`
+   - Network: `http://<your-ip>:3000` (for mobile testing)
 
-   **Note**: You may need to accept the self-signed certificate warning in your browser.
 
 ## Running Tests
 

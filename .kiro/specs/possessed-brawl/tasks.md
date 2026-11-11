@@ -723,7 +723,7 @@ The implementation uses **TypeScript** for type safety, **MediaPipe Pose** for b
     - Provide setup instructions (npm install, build commands)
     - Provide run instructions (npm run dev, npm run build)
     - Provide test instructions (npm test)
-    - Document mobile device testing over HTTPS (ngrok or similar)
+    - Document mobile device testing setup (HTTPS via ngrok or similar for webcam access on mobile)
     - Include troubleshooting section
     - _Requirements: 19.5_
 

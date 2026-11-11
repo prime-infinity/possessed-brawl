@@ -2,7 +2,6 @@ import { defineConfig } from 'vite';
 
 export default defineConfig({
   server: {
-    https: true,
     host: true,
     port: 3000,
   },

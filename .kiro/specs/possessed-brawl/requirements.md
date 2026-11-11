@@ -2,7 +2,7 @@
 
 ## Introduction
 
-Possessed Brawl is a browser-based stick-figure fighting game where players control their fighter using body poses detected through webcam via MediaPipe Pose. The game is designed for the Kiroween 2026 hackathon and must run on mobile devices (Chrome and Safari) over HTTPS in landscape orientation, targeting 20-30 fps on mid-range phones.
+Possessed Brawl is a browser-based stick-figure fighting game where players control their fighter using body poses detected through webcam via MediaPipe Pose. The game is designed for the Kiroween 2026 hackathon and must run on mobile devices (Chrome and Safari) in landscape orientation (HTTP for local development, HTTPS required for mobile device testing), targeting 20-30 fps on mid-range phones.
 
 The system is built in three stages:
 1. Pose input and setup with move detection
@@ -42,7 +42,7 @@ The system is built in three stages:
 1. THE Pose_Detector SHALL capture webcam input at 20-30 fps on mid-range mobile devices
 2. THE Pose_Detector SHALL process frames using MediaPipe Pose JavaScript library
 3. THE Pose_Detector SHALL extract waist-up body landmarks (wrists, elbows, shoulders, head)
-4. THE Pose_Detector SHALL work in mobile Chrome and Safari browsers over HTTPS
+4. THE Pose_Detector SHALL work in mobile Chrome and Safari browsers (HTTP for local development, HTTPS for mobile device testing)
 5. THE Pose_Detector SHALL display the webcam feed in landscape orientation
 6. WHEN a key joint has visibility below the Visibility_Threshold, THE Pose_Detector SHALL ignore that frame
 7. THE Pose_Detector SHALL mirror the display so that the player's left corresponds to on-screen right

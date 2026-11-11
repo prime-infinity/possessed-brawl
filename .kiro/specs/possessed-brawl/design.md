@@ -2,7 +2,7 @@
 
 ## Overview
 
-Possessed Brawl is a browser-based stick-figure fighting game controlled through webcam pose detection. The system captures player movements via MediaPipe Pose and translates them into fighting moves (jab, power punch, duck, block, charge attack) for real-time combat gameplay. The project targets mobile devices (Chrome v100+, Safari v15+) running over HTTPS in landscape orientation at 20-30 fps.
+Possessed Brawl is a browser-based stick-figure fighting game controlled through webcam pose detection. The system captures player movements via MediaPipe Pose and translates them into fighting moves (jab, power punch, duck, block, charge attack) for real-time combat gameplay. The project targets mobile devices (Chrome v100+, Safari v15+) running in landscape orientation (HTTP for local development, HTTPS for mobile device testing) at 20-30 fps.
 
 The design follows a three-stage implementation plan:
 1. **Stage 1 (Initial Implementation)**: Pose input, calibration, and move detection with debug overlay
@@ -196,7 +196,7 @@ Renderer.drawGameState(fighters, UI, effects)
 **Target Browsers:**
 - Chrome v100+ on Android (primary target)
 - Safari v15+ on iOS (secondary target)
-- Requires HTTPS for webcam access
+- HTTP for local development; HTTPS required for webcam access on mobile devices
 - Landscape orientation enforced via CSS and viewport meta tags
 
 **Performance Targets:**
