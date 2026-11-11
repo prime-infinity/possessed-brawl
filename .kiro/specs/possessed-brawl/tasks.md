@@ -22,7 +22,7 @@ The implementation uses **TypeScript** for type safety, **MediaPipe Pose** for b
   - Create `.gitignore` excluding `node_modules/`, `dist/`, build artifacts (but NOT `.kiro/`)
   - _Requirements: 19.1, 19.2, 19.3, 19.4_
 
-- [ ] 2. Install Stage 1 dependencies
+- [x] 2. Install Stage 1 dependencies
   - Install MediaPipe Pose JavaScript SDK (`@mediapipe/tasks-vision` or CDN)
   - Install TypeScript and type definitions
   - Install Vitest for unit testing
