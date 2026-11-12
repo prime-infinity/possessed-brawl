@@ -50,7 +50,7 @@ The implementation uses **TypeScript** for type safety, **MediaPipe Pose** for b
 
 #### Pose Detection and Smoothing
 
-- [ ] 5. Implement Pose_Detector component
+- [-] 5. Implement Pose_Detector component
   - [x] 5.1 Create TypeScript interfaces for Landmarks, Landmark, and PoseDetector
     - Define types matching MediaPipe Pose output format (33 landmarks with x, y, z, visibility)
     - Define landmark index constants (NOSE, LEFT_WRIST, RIGHT_WRIST, etc.)
@@ -74,7 +74,7 @@ The implementation uses **TypeScript** for type safety, **MediaPipe Pose** for b
     - Filter landmarks by visibility threshold (default 0.5)
     - _Requirements: 1.1, 1.3, 1.6_
 
-  - [ ] 5.5 Implement EMA smoothing for joint positions
+  - [x] 5.5 Implement EMA smoothing for joint positions
     - Apply exponential moving average with alpha=0.3
     - Smooth x, y, z coordinates independently
     - Skip frames with low visibility in smoothing calculations
