@@ -9,11 +9,17 @@
  * 
  * Task 8.1: Create basic Canvas rendering infrastructure
  * Task 8.2: Implement pose landmark visualization
- * Requirements: 9.1, 9.2
+ * Task 8.5: Add debug mode toggle feature
+ * Requirements: 9.1, 9.2, 9.6
  */
 
 import { Landmarks, DetectedMove, BaselineData } from '../types';
 import { PoseLandmark } from '../types/pose';
+
+/**
+ * LocalStorage key for storing debug mode preference
+ */
+const DEBUG_MODE_STORAGE_KEY = 'possessedBrawl_debugMode';
 
 /**
  * Configuration for the Renderer
@@ -107,9 +113,11 @@ export class Renderer {
    */
   constructor(config: RendererConfig) {
     this.canvas = config.canvas;
-    this.debugMode = config.debugMode ?? false;
     this.targetFps = config.targetFps ?? 30;
     this.visibilityThreshold = config.visibilityThreshold ?? 0.5;
+    
+    // Load debug mode preference from localStorage, falling back to config value
+    this.debugMode = this.loadDebugModePreference() ?? config.debugMode ?? false;
     
     // Get 2D rendering context
     const ctx = this.canvas.getContext('2d');
@@ -123,6 +131,9 @@ export class Renderer {
     
     // Set up resize listener for responsive layout
     window.addEventListener('resize', () => this.resizeCanvas());
+    
+    // Set up keyboard event listener for debug mode toggle
+    this.setupDebugToggle();
   }
   
   /**
@@ -289,6 +300,9 @@ export class Renderer {
     if (this.debugMode) {
       this.drawDebugInfo();
     }
+    
+    // Draw debug mode toggle notification if present
+    this.drawDebugModeNotification();
   }
   
   /**
@@ -791,6 +805,183 @@ export class Renderer {
    */
   public setDebugMode(enabled: boolean): void {
     this.debugMode = enabled;
+    this.saveDebugModePreference(enabled);
+  }
+  
+  /**
+   * Toggle debug mode on/off
+   * 
+   * @returns The new debug mode state
+   */
+  public toggleDebugMode(): boolean {
+    this.debugMode = !this.debugMode;
+    this.saveDebugModePreference(this.debugMode);
+    this.showDebugModeNotification(this.debugMode);
+    return this.debugMode;
+  }
+  
+  /**
+   * Set up keyboard event listener for debug mode toggle
+   * 
+   * Task 8.5: Add keyboard shortcut (e.g., 'D' key) to toggle debug overlay
+   * Requirements: 9.6
+   * 
+   * @private
+   */
+  private setupDebugToggle(): void {
+    const handleKeyPress = (event: KeyboardEvent) => {
+      // Check if 'D' key was pressed (case-insensitive)
+      if (event.key === 'd' || event.key === 'D') {
+        // Don't trigger if user is typing in an input field
+        const target = event.target as HTMLElement;
+        if (target.tagName === 'INPUT' || target.tagName === 'TEXTAREA') {
+          return;
+        }
+        
+        this.toggleDebugMode();
+      }
+    };
+    
+    window.addEventListener('keydown', handleKeyPress);
+    
+    // Store reference for cleanup (optional, if we need to remove listener later)
+    // We don't expose this for now, but could add removeDebugToggle() method if needed
+  }
+  
+  /**
+   * Load debug mode preference from localStorage
+   * 
+   * Task 8.5: Store debug mode preference in localStorage
+   * Requirements: 9.6
+   * 
+   * @returns The stored debug mode preference, or null if not found or unavailable
+   * @private
+   */
+  private loadDebugModePreference(): boolean | null {
+    try {
+      const stored = localStorage.getItem(DEBUG_MODE_STORAGE_KEY);
+      if (stored === null) {
+        return null;
+      }
+      return stored === 'true';
+    } catch (error) {
+      // localStorage might be unavailable (private browsing, storage full, etc.)
+      console.warn('Failed to load debug mode preference from localStorage:', error);
+      return null;
+    }
+  }
+  
+  /**
+   * Save debug mode preference to localStorage
+   * 
+   * Task 8.5: Store debug mode preference in localStorage
+   * Requirements: 9.6
+   * 
+   * @param enabled - The debug mode state to save
+   * @private
+   */
+  private saveDebugModePreference(enabled: boolean): void {
+    try {
+      localStorage.setItem(DEBUG_MODE_STORAGE_KEY, enabled.toString());
+    } catch (error) {
+      // localStorage might be unavailable (private browsing, storage full, etc.)
+      // Graceful degradation - continue without saving preference
+      console.warn('Failed to save debug mode preference to localStorage:', error);
+    }
+  }
+  
+  /**
+   * Show a brief notification when debug mode is toggled
+   * 
+   * Provides visual feedback to the user when pressing 'D' key
+   * 
+   * @param enabled - The new debug mode state
+   * @private
+   */
+  private showDebugModeNotification(enabled: boolean): void {
+    // Draw notification on next frame
+    const message = enabled ? 'Debug Mode: ON' : 'Debug Mode: OFF';
+    const color = enabled ? '#00ff00' : '#ff0000';
+    
+    // Store notification state temporarily
+    const notification = {
+      message,
+      color,
+      startTime: performance.now(),
+      duration: 1000 // Show for 1 second
+    };
+    
+    // Add to current state for rendering
+    this.currentState.debug = {
+      ...this.currentState.debug,
+      notification
+    };
+  }
+  
+  /**
+   * Draw debug mode toggle notification
+   * 
+   * Shows a brief message in the center of the screen when debug mode is toggled
+   * 
+   * @private
+   */
+  private drawDebugModeNotification(): void {
+    const notification = this.currentState.debug?.notification;
+    
+    if (!notification) {
+      return;
+    }
+    
+    const currentTime = performance.now();
+    const elapsed = currentTime - notification.startTime;
+    
+    // Check if notification should still be visible
+    if (elapsed > notification.duration) {
+      // Clear notification from state
+      if (this.currentState.debug) {
+        delete this.currentState.debug.notification;
+      }
+      return;
+    }
+    
+    // Calculate fade-out opacity (fade in last 200ms)
+    const fadeOutStart = notification.duration - 200;
+    let opacity = 1.0;
+    if (elapsed > fadeOutStart) {
+      opacity = 1.0 - ((elapsed - fadeOutStart) / 200);
+    }
+    
+    this.ctx.save();
+    
+    // Draw semi-transparent background
+    this.ctx.fillStyle = `rgba(0, 0, 0, ${0.7 * opacity})`;
+    const padding = 20;
+    const fontSize = 24;
+    this.ctx.font = `bold ${fontSize}px monospace`;
+    
+    const textMetrics = this.ctx.measureText(notification.message);
+    const textWidth = textMetrics.width;
+    const textHeight = fontSize;
+    
+    const bgWidth = textWidth + padding * 2;
+    const bgHeight = textHeight + padding * 2;
+    const bgX = (this.width - bgWidth) / 2;
+    const bgY = 100; // Position near top of screen
+    
+    this.ctx.fillRect(bgX, bgY, bgWidth, bgHeight);
+    
+    // Draw text
+    this.ctx.fillStyle = notification.color;
+    this.ctx.globalAlpha = opacity;
+    this.ctx.textAlign = 'center';
+    this.ctx.textBaseline = 'middle';
+    this.ctx.fillText(
+      notification.message,
+      this.width / 2,
+      bgY + bgHeight / 2
+    );
+    
+    this.ctx.restore();
   }
   
   /**

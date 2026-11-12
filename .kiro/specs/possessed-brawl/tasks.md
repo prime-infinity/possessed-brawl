@@ -239,7 +239,7 @@ The implementation uses **TypeScript** for type safety, **MediaPipe Pose** for b
 
 #### Debug Overlay and Rendering
 
-- [ ] 8. Implement Debug Renderer for Stage 1
+- [x] 8. Implement Debug Renderer for Stage 1
   - [x] 8.1 Create basic Canvas rendering infrastructure
     - Initialize Canvas 2D context
     - Set up requestAnimationFrame render loop
@@ -268,12 +268,12 @@ The implementation uses **TypeScript** for type safety, **MediaPipe Pose** for b
     - Show calibration quality metrics
     - _Requirements: 2.7, 9.3_
 
-  - [ ] 8.5 Implement debug mode toggle
+  - [x] 8.5 Implement debug mode toggle
     - Add keyboard shortcut (e.g., 'D' key) to toggle debug overlay
     - Store debug mode preference in localStorage
     - _Requirements: 9.6_
 
-  - [ ]* 8.6 Write visual regression tests for debug overlay
+  - [x] 8.6 Write visual regression tests for debug overlay
     - Test landmark rendering with various visibility levels
     - Test text overlay formatting and positioning
     - Test baseline visualization
