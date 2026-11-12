@@ -433,21 +433,181 @@ export class Renderer {
    * Shows FPS and coordinate system info.
    * More detailed debug overlay will be implemented in task 8.3.
    */
+  /**
+   * Draw comprehensive debug information overlay
+   * 
+   * Task 8.3: Implement debug text overlay
+   * - Display currently detected move name
+   * - Display raw joint position values for key joints (wrists, head, shoulders)
+   * - Display current threshold values for all move types
+   * - Display cooldown timers for all move types
+   * - Display simulated stamina level (for Stage 1 testing)
+   * - Display FPS counter
+   * Requirements: 9.1, 9.2, 9.3, 9.4, 9.5
+   */
   private drawDebugInfo(): void {
     this.ctx.save();
     
-    // Draw FPS counter
+    // Configure text rendering
+    this.ctx.font = '12px monospace';
+    this.ctx.textBaseline = 'top';
+    
+    const lineHeight = 14;
+    let yPos = 10;
+    const leftX = 10;
+    const rightX = this.width - 300;
+    
+    // === LEFT COLUMN ===
+    
+    // Section 1: Performance Stats
+    this.ctx.fillStyle = '#ffff00'; // Yellow for headers
+    this.ctx.fillText('=== PERFORMANCE ===', leftX, yPos);
+    yPos += lineHeight;
+    
     this.ctx.fillStyle = '#fff';
-    this.ctx.font = '14px monospace';
-    this.ctx.fillText(`FPS: ${this.currentFps}`, 10, 20);
+    this.ctx.fillText(`FPS: ${this.currentFps}`, leftX, yPos);
+    yPos += lineHeight;
+    this.ctx.fillText(`Canvas: ${this.width}x${this.height}`, leftX, yPos);
+    yPos += lineHeight * 1.5; // Extra spacing
     
-    // Draw canvas dimensions
-    this.ctx.fillText(`Canvas: ${this.width}x${this.height}`, 10, 40);
+    // Section 2: Detected Moves
+    this.ctx.fillStyle = '#ffff00';
+    this.ctx.fillText('=== DETECTED MOVES ===', leftX, yPos);
+    yPos += lineHeight;
     
-    // Draw coordinate system reference
-    this.ctx.fillStyle = '#666';
-    this.ctx.fillText('0,0 (top-left)', 10, this.height - 40);
-    this.ctx.fillText(`${this.width},${this.height} (bottom-right)`, this.width - 200, this.height - 20);
+    this.ctx.fillStyle = '#fff';
+    if (this.currentState.detectedMoves && this.currentState.detectedMoves.length > 0) {
+      for (const move of this.currentState.detectedMoves) {
+        const intensity = (move.intensity * 100).toFixed(0);
+        this.ctx.fillText(`${move.type.toUpperCase()}: ${intensity}%`, leftX, yPos);
+        yPos += lineHeight;
+      }
+    } else {
+      this.ctx.fillStyle = '#888';
+      this.ctx.fillText('No moves detected', leftX, yPos);
+      yPos += lineHeight;
+    }
+    yPos += lineHeight * 0.5; // Extra spacing
+    
+    // Section 3: Key Joint Positions
+    this.ctx.fillStyle = '#ffff00';
+    this.ctx.fillText('=== KEY JOINTS ===', leftX, yPos);
+    yPos += lineHeight;
+    
+    if (this.currentState.landmarks) {
+      const joints = [
+        { name: 'Nose', idx: PoseLandmark.NOSE },
+        { name: 'L Shoulder', idx: PoseLandmark.LEFT_SHOULDER },
+        { name: 'R Shoulder', idx: PoseLandmark.RIGHT_SHOULDER },
+        { name: 'L Wrist', idx: PoseLandmark.LEFT_WRIST },
+        { name: 'R Wrist', idx: PoseLandmark.RIGHT_WRIST },
+      ];
+      
+      for (const joint of joints) {
+        if (joint.idx < this.currentState.landmarks.points.length) {
+          const landmark = this.currentState.landmarks.points[joint.idx];
+          const xCoord = landmark.x.toFixed(3);
+          const yCoord = landmark.y.toFixed(3);
+          const zCoord = landmark.z.toFixed(3);
+          const vis = landmark.visibility.toFixed(2);
+          
+          // Color code by visibility
+          if (landmark.visibility >= this.visibilityThreshold) {
+            this.ctx.fillStyle = '#0f0'; // Green for visible
+          } else {
+            this.ctx.fillStyle = '#f00'; // Red for low visibility
+          }
+          
+          this.ctx.fillText(`${joint.name}:`, leftX, yPos);
+          this.ctx.fillText(`  (${xCoord}, ${yCoord}, ${zCoord}) v:${vis}`, leftX, yPos + lineHeight);
+          yPos += lineHeight * 2;
+        }
+      }
+    } else {
+      this.ctx.fillStyle = '#888';
+      this.ctx.fillText('No landmarks available', leftX, yPos);
+      yPos += lineHeight;
+    }
+    
+    // === RIGHT COLUMN ===
+    let rightYPos = 10;
+    
+    // Section 4: Stamina
+    this.ctx.fillStyle = '#ffff00';
+    this.ctx.fillText('=== STAMINA ===', rightX, rightYPos);
+    rightYPos += lineHeight;
+    
+    const stamina = this.currentState.debug?.stamina ?? 100;
+    this.ctx.fillStyle = '#fff';
+    this.ctx.fillText(`Stamina: ${stamina.toFixed(0)}`, rightX, rightYPos);
+    rightYPos += lineHeight;
+    
+    // Draw stamina bar
+    const barWidth = 200;
+    const barHeight = 10;
+    this.ctx.strokeStyle = '#fff';
+    this.ctx.strokeRect(rightX, rightYPos, barWidth, barHeight);
+    
+    const staminaPercent = Math.max(0, Math.min(100, stamina)) / 100;
+    this.ctx.fillStyle = staminaPercent > 0.5 ? '#0f0' : staminaPercent > 0.25 ? '#ff0' : '#f00';
+    this.ctx.fillRect(rightX, rightYPos, barWidth * staminaPercent, barHeight);
+    rightYPos += barHeight + lineHeight;
+    
+    // Section 5: Cooldowns
+    this.ctx.fillStyle = '#ffff00';
+    this.ctx.fillText('=== COOLDOWNS (ms) ===', rightX, rightYPos);
+    rightYPos += lineHeight;
+    
+    if (this.currentState.debug?.cooldowns) {
+      const cooldowns = this.currentState.debug.cooldowns;
+      this.ctx.fillStyle = '#fff';
+      
+      for (const [moveType, cooldownMs] of Object.entries(cooldowns)) {
+        const cooldownValue = cooldownMs as number;
+        const displayValue = cooldownValue > 0 ? cooldownValue.toFixed(0) : '0';
+        
+        // Color code: red if on cooldown, green if ready
+        this.ctx.fillStyle = cooldownValue > 0 ? '#f00' : '#0f0';
+        this.ctx.fillText(`${moveType.toUpperCase()}: ${displayValue}`, rightX, rightYPos);
+        rightYPos += lineHeight;
+      }
+    } else {
+      this.ctx.fillStyle = '#888';
+      this.ctx.fillText('No cooldown data', rightX, rightYPos);
+      rightYPos += lineHeight;
+    }
+    rightYPos += lineHeight * 0.5;
+    
+    // Section 6: Thresholds
+    this.ctx.fillStyle = '#ffff00';
+    this.ctx.fillText('=== THRESHOLDS ===', rightX, rightYPos);
+    rightYPos += lineHeight;
+    
+    if (this.currentState.debug?.thresholds) {
+      const thresholds = this.currentState.debug.thresholds;
+      this.ctx.fillStyle = '#fff';
+      
+      // Display key thresholds
+      const displayThresholds = [
+        { name: 'Jab', value: thresholds.jabThreshold },
+        { name: 'Power Punch', value: thresholds.powerPunchThreshold },
+        { name: 'Duck', value: thresholds.duckThreshold },
+        { name: 'Block', value: thresholds.blockProximityThreshold },
+        { name: 'Charge Prox', value: thresholds.chargeProximityThreshold },
+        { name: 'Charge Release', value: thresholds.chargeReleaseThreshold },
+        { name: 'Charge Stamina', value: thresholds.chargeStaminaThreshold },
+      ];
+      
+      for (const threshold of displayThresholds) {
+        const value = threshold.value.toFixed(2);
+        this.ctx.fillText(`${threshold.name}: ${value}`, rightX, rightYPos);
+        rightYPos += lineHeight;
+      }
+    } else {
+      this.ctx.fillStyle = '#888';
+      this.ctx.fillText('No threshold data', rightX, rightYPos);
+      rightYPos += lineHeight;
+    }
     
     this.ctx.restore();
   }

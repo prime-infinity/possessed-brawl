@@ -252,7 +252,7 @@ The implementation uses **TypeScript** for type safety, **MediaPipe Pose** for b
     - Display real-time landmark positions on screen
     - _Requirements: 9.1, 9.2_
 
-  - [ ] 8.3 Implement debug text overlay
+  - [x] 8.3 Implement debug text overlay
     - Display currently detected move name
     - Display raw joint position values for key joints (wrists, head, shoulders)
     - Display current threshold values for all move types
