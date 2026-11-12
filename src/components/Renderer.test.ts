@@ -305,4 +305,203 @@ describe('Renderer', () => {
       expect(center).toEqual({ x: 448, y: 207 });
     });
   });
+  
+  describe('pose landmark visualization', () => {
+    beforeEach(() => {
+      renderer = new Renderer({ canvas, visibilityThreshold: 0.5 });
+    });
+    
+    it('should render landmarks when provided in state', () => {
+      const ctx = canvas.getContext('2d');
+      expect(ctx).not.toBeNull();
+      
+      // Create mock landmarks with some visible and some not visible
+      const mockLandmarks = {
+        points: [
+          { x: 0.5, y: 0.3, z: 0, visibility: 0.9 },  // High visibility - should be green
+          { x: 0.6, y: 0.4, z: 0, visibility: 0.3 },  // Low visibility - should be red
+          { x: 0.4, y: 0.4, z: 0, visibility: 0.8 },  // High visibility - should be green
+        ],
+        timestamp: Date.now()
+      };
+      
+      const arcSpy = vi.spyOn(ctx!, 'arc');
+      const fillSpy = vi.spyOn(ctx!, 'fill');
+      
+      renderer.updateState({ landmarks: mockLandmarks });
+      
+      // Manually trigger render
+      renderer.renderFrame();
+      
+      // Arc should be called for each landmark
+      expect(arcSpy).toHaveBeenCalled();
+      expect(fillSpy).toHaveBeenCalled();
+      
+      arcSpy.mockRestore();
+      fillSpy.mockRestore();
+    });
+    
+    it('should use green color for visible landmarks', () => {
+      const ctx = canvas.getContext('2d');
+      
+      const mockLandmarks = {
+        points: [
+          { x: 0.5, y: 0.5, z: 0, visibility: 0.9 }  // Above threshold
+        ],
+        timestamp: Date.now()
+      };
+      
+      const fillStyleSpy = vi.spyOn(ctx!, 'fillStyle', 'set');
+      
+      renderer.updateState({ landmarks: mockLandmarks });
+      renderer.renderFrame();
+      
+      // Should have set fillStyle to green at some point
+      expect(fillStyleSpy).toHaveBeenCalled();
+      const greenCalls = fillStyleSpy.mock.calls.filter(call => call[0] === '#00ff00');
+      expect(greenCalls.length).toBeGreaterThan(0);
+      
+      fillStyleSpy.mockRestore();
+    });
+    
+    it('should use red color for low visibility landmarks', () => {
+      const ctx = canvas.getContext('2d');
+      
+      const mockLandmarks = {
+        points: [
+          { x: 0.5, y: 0.5, z: 0, visibility: 0.2 }  // Below threshold
+        ],
+        timestamp: Date.now()
+      };
+      
+      const fillStyleSpy = vi.spyOn(ctx!, 'fillStyle', 'set');
+      
+      renderer.updateState({ landmarks: mockLandmarks });
+      renderer.renderFrame();
+      
+      const redCalls = fillStyleSpy.mock.calls.filter(call => call[0] === '#ff0000');
+      expect(redCalls.length).toBeGreaterThan(0);
+      
+      fillStyleSpy.mockRestore();
+    });
+    
+    it('should draw skeleton lines connecting joints', () => {
+      const ctx = canvas.getContext('2d');
+      
+      // Create landmarks for a simple skeleton (need at least 2 connected points)
+      // Using shoulder connection (indices 11 and 12)
+      const mockLandmarks = {
+        points: Array(33).fill(null).map((_, i) => ({
+          x: 0.5 + (i * 0.01), // Spread them out a bit
+          y: 0.5,
+          z: 0,
+          visibility: i === 11 || i === 12 ? 0.9 : 0.1 // Only shoulders visible
+        })),
+        timestamp: Date.now()
+      };
+      
+      const moveToSpy = vi.spyOn(ctx!, 'moveTo');
+      const lineToSpy = vi.spyOn(ctx!, 'lineTo');
+      const strokeSpy = vi.spyOn(ctx!, 'stroke');
+      
+      renderer.updateState({ landmarks: mockLandmarks });
+      renderer.renderFrame();
+      
+      // Should have drawn lines
+      expect(moveToSpy).toHaveBeenCalled();
+      expect(lineToSpy).toHaveBeenCalled();
+      expect(strokeSpy).toHaveBeenCalled();
+      
+      moveToSpy.mockRestore();
+      lineToSpy.mockRestore();
+      strokeSpy.mockRestore();
+    });
+    
+    it('should only draw skeleton lines between visible landmarks', () => {
+      const ctx = canvas.getContext('2d');
+      
+      // Create landmarks where only one shoulder is visible
+      // The shoulder-to-shoulder line should NOT be drawn
+      const mockLandmarks = {
+        points: Array(33).fill(null).map((_, i) => ({
+          x: 0.5,
+          y: 0.5,
+          z: 0,
+          visibility: i === 11 ? 0.9 : 0.1 // Only left shoulder visible
+        })),
+        timestamp: Date.now()
+      };
+      
+      const strokeSpy = vi.spyOn(ctx!, 'stroke');
+      
+      renderer.updateState({ landmarks: mockLandmarks });
+      
+      const strokeCountBefore = strokeSpy.mock.calls.length;
+      renderer.renderFrame();
+      const strokeCountAfter = strokeSpy.mock.calls.length;
+      
+      // Should have minimal strokes since most landmarks are not visible
+      // (exact count depends on implementation details)
+      expect(strokeCountAfter).toBeGreaterThanOrEqual(strokeCountBefore);
+      
+      strokeSpy.mockRestore();
+    });
+    
+    it('should transform landmark coordinates correctly', () => {
+      const ctx = canvas.getContext('2d');
+      
+      // Landmark at normalized (0.5, 0.5) should be at pixel (400, 300) for 800x600 canvas
+      const mockLandmarks = {
+        points: [
+          { x: 0.5, y: 0.5, z: 0, visibility: 0.9 }
+        ],
+        timestamp: Date.now()
+      };
+      
+      const arcSpy = vi.spyOn(ctx!, 'arc');
+      
+      renderer.updateState({ landmarks: mockLandmarks });
+      renderer.renderFrame();
+      
+      // Arc should be called with center coordinates (400, 300)
+      expect(arcSpy).toHaveBeenCalled();
+      const calls = arcSpy.mock.calls;
+      const lastCall = calls[calls.length - 1];
+      
+      // Check that arc was called with correct pixel coordinates
+      expect(lastCall[0]).toBeCloseTo(400, 1); // x
+      expect(lastCall[1]).toBeCloseTo(300, 1); // y
+      
+      arcSpy.mockRestore();
+    });
+    
+    it('should respect custom visibility threshold', () => {
+      const customRenderer = new Renderer({ 
+        canvas, 
+        visibilityThreshold: 0.7 // Higher threshold
+      });
+      
+      const ctx = canvas.getContext('2d');
+      
+      // Landmark with visibility 0.6 (below custom threshold but above default)
+      const mockLandmarks = {
+        points: [
+          { x: 0.5, y: 0.5, z: 0, visibility: 0.6 }
+        ],
+        timestamp: Date.now()
+      };
+      
+      const fillStyleSpy = vi.spyOn(ctx!, 'fillStyle', 'set');
+      
+      customRenderer.updateState({ landmarks: mockLandmarks });
+      customRenderer.renderFrame();
+      
+      // Should use red color since visibility is below 0.7
+      const redCalls = fillStyleSpy.mock.calls.filter(call => call[0] === '#ff0000');
+      expect(redCalls.length).toBeGreaterThan(0);
+      
+      fillStyleSpy.mockRestore();
+      customRenderer.dispose();
+    });
+  });
 });

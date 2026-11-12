@@ -5,12 +5,15 @@
  * - Initialize Canvas 2D context
  * - Set up requestAnimationFrame render loop
  * - Implement coordinate transformation (normalized to canvas pixels)
+ * - Pose landmark visualization with skeleton connections
  * 
  * Task 8.1: Create basic Canvas rendering infrastructure
- * Requirements: 9.1
+ * Task 8.2: Implement pose landmark visualization
+ * Requirements: 9.1, 9.2
  */
 
 import { Landmarks, DetectedMove, BaselineData } from '../types';
+import { PoseLandmark } from '../types/pose';
 
 /**
  * Configuration for the Renderer
@@ -32,6 +35,12 @@ export interface RendererConfig {
    * @default 30
    */
   targetFps?: number;
+  
+  /**
+   * Visibility threshold for landmarks
+   * @default 0.5
+   */
+  visibilityThreshold?: number;
 }
 
 /**
@@ -76,6 +85,7 @@ export class Renderer {
   private ctx: CanvasRenderingContext2D;
   private debugMode: boolean;
   private targetFps: number;
+  private visibilityThreshold: number;
   
   // Animation frame management
   private animationFrameId: number | null = null;
@@ -99,6 +109,7 @@ export class Renderer {
     this.canvas = config.canvas;
     this.debugMode = config.debugMode ?? false;
     this.targetFps = config.targetFps ?? 30;
+    this.visibilityThreshold = config.visibilityThreshold ?? 0.5;
     
     // Get 2D rendering context
     const ctx = this.canvas.getContext('2d');
@@ -264,14 +275,155 @@ export class Renderer {
     this.ctx.fillStyle = '#1a1a1a';
     this.ctx.fillRect(0, 0, this.width, this.height);
     
-    // Draw current state
-    // TODO: Implement specific drawing methods in subsequent tasks
-    // - Task 8.2: Pose landmark visualization
-    // - Task 8.3: Debug text overlay
-    // - Task 8.4: Baseline reference visualization
+    // Draw pose landmarks if available
+    if (this.currentState.landmarks) {
+      this.drawPoseLandmarks(this.currentState.landmarks);
+    }
     
+    // Draw debug overlay if enabled
     if (this.debugMode) {
       this.drawDebugInfo();
+    }
+  }
+  
+  /**
+   * Manually trigger a single render (for testing)
+   * 
+   * @internal
+   */
+  public renderFrame(): void {
+    this.render();
+  }
+  
+  /**
+   * Draw pose landmarks with skeleton connections
+   * 
+   * Task 8.2: Pose landmark visualization
+   * - Draws circles for each visible landmark (green if visible, red if low visibility)
+   * - Draws skeleton lines connecting anatomical joints
+   * - Requirements: 9.1, 9.2
+   * 
+   * @param landmarks - The pose landmarks to draw
+   */
+  private drawPoseLandmarks(landmarks: Landmarks): void {
+    this.ctx.save();
+    
+    // First draw skeleton lines (so they appear behind the landmark circles)
+    this.drawSkeletonLines(landmarks);
+    
+    // Then draw landmark circles on top
+    for (let i = 0; i < landmarks.points.length; i++) {
+      const landmark = landmarks.points[i];
+      
+      // Skip landmarks with no visibility data (shouldn't happen but defensive)
+      if (landmark.visibility === undefined) {
+        continue;
+      }
+      
+      // Convert normalized coordinates to pixel coordinates
+      const pixel = this.normalizedToPixels(landmark.x, landmark.y);
+      
+      // Determine color based on visibility threshold
+      const isVisible = landmark.visibility >= this.visibilityThreshold;
+      const color = isVisible ? '#00ff00' : '#ff0000'; // Green if visible, red if low visibility
+      const radius = isVisible ? 5 : 3; // Larger circle for visible landmarks
+      
+      // Draw landmark circle
+      this.ctx.fillStyle = color;
+      this.ctx.beginPath();
+      this.ctx.arc(pixel.x, pixel.y, radius, 0, 2 * Math.PI);
+      this.ctx.fill();
+    }
+    
+    this.ctx.restore();
+  }
+  
+  /**
+   * Draw skeleton lines connecting anatomical joints
+   * 
+   * Follows MediaPipe Pose's 33-landmark model connections.
+   * Only draws lines between landmarks that are both visible.
+   * 
+   * @param landmarks - The pose landmarks
+   */
+  private drawSkeletonLines(landmarks: Landmarks): void {
+    // Define skeleton connections based on human anatomy
+    // Each connection is a pair of landmark indices [from, to]
+    const connections: [number, number][] = [
+      // Face
+      [PoseLandmark.LEFT_EYE, PoseLandmark.RIGHT_EYE],
+      [PoseLandmark.LEFT_EYE, PoseLandmark.NOSE],
+      [PoseLandmark.RIGHT_EYE, PoseLandmark.NOSE],
+      [PoseLandmark.LEFT_EYE, PoseLandmark.LEFT_EAR],
+      [PoseLandmark.RIGHT_EYE, PoseLandmark.RIGHT_EAR],
+      [PoseLandmark.MOUTH_LEFT, PoseLandmark.MOUTH_RIGHT],
+      
+      // Shoulders
+      [PoseLandmark.LEFT_SHOULDER, PoseLandmark.RIGHT_SHOULDER],
+      
+      // Left arm
+      [PoseLandmark.LEFT_SHOULDER, PoseLandmark.LEFT_ELBOW],
+      [PoseLandmark.LEFT_ELBOW, PoseLandmark.LEFT_WRIST],
+      [PoseLandmark.LEFT_WRIST, PoseLandmark.LEFT_PINKY],
+      [PoseLandmark.LEFT_WRIST, PoseLandmark.LEFT_INDEX],
+      [PoseLandmark.LEFT_WRIST, PoseLandmark.LEFT_THUMB],
+      [PoseLandmark.LEFT_PINKY, PoseLandmark.LEFT_INDEX],
+      
+      // Right arm
+      [PoseLandmark.RIGHT_SHOULDER, PoseLandmark.RIGHT_ELBOW],
+      [PoseLandmark.RIGHT_ELBOW, PoseLandmark.RIGHT_WRIST],
+      [PoseLandmark.RIGHT_WRIST, PoseLandmark.RIGHT_PINKY],
+      [PoseLandmark.RIGHT_WRIST, PoseLandmark.RIGHT_INDEX],
+      [PoseLandmark.RIGHT_WRIST, PoseLandmark.RIGHT_THUMB],
+      [PoseLandmark.RIGHT_PINKY, PoseLandmark.RIGHT_INDEX],
+      
+      // Torso
+      [PoseLandmark.LEFT_SHOULDER, PoseLandmark.LEFT_HIP],
+      [PoseLandmark.RIGHT_SHOULDER, PoseLandmark.RIGHT_HIP],
+      [PoseLandmark.LEFT_HIP, PoseLandmark.RIGHT_HIP],
+      
+      // Left leg
+      [PoseLandmark.LEFT_HIP, PoseLandmark.LEFT_KNEE],
+      [PoseLandmark.LEFT_KNEE, PoseLandmark.LEFT_ANKLE],
+      [PoseLandmark.LEFT_ANKLE, PoseLandmark.LEFT_HEEL],
+      [PoseLandmark.LEFT_ANKLE, PoseLandmark.LEFT_FOOT_INDEX],
+      [PoseLandmark.LEFT_HEEL, PoseLandmark.LEFT_FOOT_INDEX],
+      
+      // Right leg
+      [PoseLandmark.RIGHT_HIP, PoseLandmark.RIGHT_KNEE],
+      [PoseLandmark.RIGHT_KNEE, PoseLandmark.RIGHT_ANKLE],
+      [PoseLandmark.RIGHT_ANKLE, PoseLandmark.RIGHT_HEEL],
+      [PoseLandmark.RIGHT_ANKLE, PoseLandmark.RIGHT_FOOT_INDEX],
+      [PoseLandmark.RIGHT_HEEL, PoseLandmark.RIGHT_FOOT_INDEX],
+    ];
+    
+    this.ctx.strokeStyle = '#00ffff'; // Cyan color for skeleton lines
+    this.ctx.lineWidth = 2;
+    this.ctx.lineCap = 'round';
+    
+    // Draw each connection
+    for (const [fromIdx, toIdx] of connections) {
+      // Ensure indices are within bounds
+      if (fromIdx >= landmarks.points.length || toIdx >= landmarks.points.length) {
+        continue;
+      }
+      
+      const fromLandmark = landmarks.points[fromIdx];
+      const toLandmark = landmarks.points[toIdx];
+      
+      // Only draw line if both landmarks are visible
+      if (
+        fromLandmark.visibility >= this.visibilityThreshold &&
+        toLandmark.visibility >= this.visibilityThreshold
+      ) {
+        const fromPixel = this.normalizedToPixels(fromLandmark.x, fromLandmark.y);
+        const toPixel = this.normalizedToPixels(toLandmark.x, toLandmark.y);
+        
+        this.ctx.beginPath();
+        this.ctx.moveTo(fromPixel.x, fromPixel.y);
+        this.ctx.lineTo(toPixel.x, toPixel.y);
+        this.ctx.stroke();
+      }
     }
   }
   

@@ -311,6 +311,18 @@
         "chatSessionId": "sess_6a6cad9b-f17a-4161-973c-8acd2e70369e",
         "timestamp": 1794468935906
       }
+    ],
+    "8.2 Implement pose landmark visualization": [
+      {
+        "executionId": "1aa1fa3b-229d-451b-9693-e84a8bcefcd0",
+        "chatSessionId": "sess_f38853f0-2048-4a54-8b5d-d5c10ce4c196",
+        "timestamp": 1794469167811
+      },
+      {
+        "executionId": "1aa1fa3b-229d-451b-9693-e84a8bcefcd0",
+        "chatSessionId": "sess_f38853f0-2048-4a54-8b5d-d5c10ce4c196",
+        "timestamp": 1794469562327
+      }
     ]
   }
 }
