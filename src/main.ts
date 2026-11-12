@@ -116,6 +116,19 @@ export class Application {
         this.calibrator.retry();
       }
     });
+    
+    // Retry button click handler (from HTML UI)
+    const retryBtn = document.getElementById('retry-calibration-btn') as HTMLButtonElement;
+    if (retryBtn) {
+      retryBtn.addEventListener('click', () => {
+        if (this.state === AppState.CALIBRATING &&
+            this.calibrator.getState() === CalibrationState.FAILED) {
+          console.log('Retrying calibration...');
+          this.calibrator.retry();
+          retryBtn.style.display = 'none';
+        }
+      });
+    }
   }
 
   /**
@@ -138,13 +151,13 @@ export class Application {
       // Hide loading screen
       this.loadingScreen.classList.remove('active');
       
-      // Show calibration screen
-      this.calibrationScreen.classList.add('active');
-      
       // Initialize PoseDetector (requests webcam permission)
       console.log('Initializing pose detector...');
       await this.poseDetector.initialize();
       console.log('Pose detector initialized successfully');
+      
+      // Show canvas for rendering
+      this.canvas.classList.add('active');
       
       // Start calibration
       this.state = AppState.CALIBRATING;
@@ -253,6 +266,14 @@ export class Application {
     if (calState === CalibrationState.COMPLETED) {
       this.onCalibrationComplete();
     }
+    
+    // Show retry button if calibration failed
+    if (calState === CalibrationState.FAILED) {
+      const retryBtn = document.getElementById('retry-calibration-btn') as HTMLButtonElement;
+      if (retryBtn) {
+        retryBtn.style.display = 'block';
+      }
+    }
   }
 
   /**
@@ -277,15 +298,15 @@ export class Application {
     this.moveRecognizer = new MoveRecognizer();
     console.log('MoveRecognizer initialized');
     
-    // Hide calibration screen
-    this.calibrationScreen.classList.remove('active');
-    
-    // Transition to active state
-    this.state = AppState.ACTIVE;
-    console.log('Application now active - move detection enabled');
-    
-    // Start renderer
-    this.renderer.start();
+    // Transition to active state after a brief delay to show completion message
+    setTimeout(() => {
+      // Transition to active state
+      this.state = AppState.ACTIVE;
+      console.log('Application now active - move detection enabled');
+      
+      // Start renderer
+      this.renderer.start();
+    }, 1000); // 1 second delay to show completion message
   }
 
   /**
@@ -418,30 +439,23 @@ export class Application {
     const message = error instanceof Error ? error.message : String(error);
     console.error('Application error:', message);
     
-    // Display error on canvas
-    const ctx = this.canvas.getContext('2d');
-    if (!ctx) return;
-
-    ctx.clearRect(0, 0, this.canvas.width, this.canvas.height);
-    ctx.save();
-    ctx.fillStyle = '#ff0000';
-    ctx.font = '24px Arial';
-    ctx.textAlign = 'center';
-    ctx.textBaseline = 'middle';
-
-    ctx.fillText('Error:', this.canvas.width / 2, this.canvas.height / 2 - 30);
-    
-    ctx.font = '18px Arial';
-    ctx.fillStyle = '#ffffff';
-    ctx.fillText(message, this.canvas.width / 2, this.canvas.height / 2 + 10);
-    
-    ctx.font = '14px Arial';
-    ctx.fillText('Press F5 to reload', this.canvas.width / 2, this.canvas.height / 2 + 50);
-
-    ctx.restore();
-    
-    // Show loading screen with error
+    // Show loading screen with error message
     this.loadingScreen.classList.add('active');
+    this.canvas.classList.remove('active');
+    
+    // Display error in the error message div
+    const errorDiv = document.getElementById('error-message') as HTMLDivElement;
+    if (errorDiv) {
+      errorDiv.textContent = message;
+      errorDiv.classList.add('active');
+    }
+    
+    // Re-enable start button for retry
+    this.startBtn.textContent = 'Retry';
+    this.startBtn.disabled = false;
+    
+    // Reset state for retry
+    this.state = AppState.NOT_STARTED;
   }
 
   /**

@@ -289,7 +289,7 @@ The implementation uses **TypeScript** for type safety, **MediaPipe Pose** for b
     - Implement main loop processing frames through pipeline
     - _Requirements: 1.1, 2.1, 4.1, 9.1_
 
-  - [ ] 9.2 Implement calibration flow with UI transitions
+  - [x] 9.2 Implement calibration flow with UI transitions
     - Show permission request screen
     - Transition to calibration screen with visual guide
     - Display calibration progress

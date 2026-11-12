@@ -369,6 +369,18 @@
         "chatSessionId": "sess_7622f9af-60e1-4271-9e2a-bf5845624f5e",
         "timestamp": 1794472752777
       }
+    ],
+    "9.2 Implement calibration flow with UI transitions": [
+      {
+        "executionId": "a770c29a-c155-4fb0-b168-e2715ac13522",
+        "chatSessionId": "sess_ce382545-5def-4fd7-9159-e4e36b2b582f",
+        "timestamp": 1794473012857
+      },
+      {
+        "executionId": "a770c29a-c155-4fb0-b168-e2715ac13522",
+        "chatSessionId": "sess_ce382545-5def-4fd7-9159-e4e36b2b582f",
+        "timestamp": 1794473284617
+      }
     ]
   }
 }
