@@ -299,6 +299,18 @@
         "chatSessionId": "sess_c9e7774c-a0d3-4fea-97e1-fc4bc3e9e274",
         "timestamp": 1794468378824
       }
+    ],
+    "8.1 Create basic Canvas rendering infrastructure": [
+      {
+        "executionId": "6640c7e0-ed92-485c-8930-3e18b41149ab",
+        "chatSessionId": "sess_6a6cad9b-f17a-4161-973c-8acd2e70369e",
+        "timestamp": 1794468681459
+      },
+      {
+        "executionId": "6640c7e0-ed92-485c-8930-3e18b41149ab",
+        "chatSessionId": "sess_6a6cad9b-f17a-4161-973c-8acd2e70369e",
+        "timestamp": 1794468935906
+      }
     ]
   }
 }
