@@ -640,6 +640,236 @@ describe('PoseDetector', () => {
     });
   });
 
+  describe('Error handling for missing and malformed landmarks', () => {
+    it('should handle landmarks with undefined visibility gracefully', () => {
+      const landmarkWithUndefinedVisibility: Landmark = { 
+        x: 0.5, 
+        y: 0.5, 
+        z: 0.0, 
+        visibility: undefined as any 
+      };
+
+      // Should treat undefined visibility as 0 and return false
+      const result = detector.isLandmarkVisible(landmarkWithUndefinedVisibility);
+      expect(result).toBe(false);
+    });
+
+    it('should handle landmarks with NaN coordinates in smoothing', () => {
+      const rawLandmarks: Landmarks = {
+        points: [
+          { x: NaN, y: NaN, z: NaN, visibility: 0.9 }
+        ],
+        timestamp: Date.now()
+      };
+
+      const previousLandmarks: Landmarks = {
+        points: [
+          { x: 0.5, y: 0.5, z: 0.0, visibility: 0.9 }
+        ],
+        timestamp: Date.now() - 33
+      };
+
+      const smoothed = detector.smoothLandmarks(rawLandmarks, previousLandmarks);
+
+      // Should result in NaN values after applying EMA (NaN propagates through math)
+      expect(isNaN(smoothed.points[0].x)).toBe(true);
+      expect(isNaN(smoothed.points[0].y)).toBe(true);
+      expect(isNaN(smoothed.points[0].z)).toBe(true);
+    });
+
+    it('should handle mismatched landmark array lengths in smoothing', () => {
+      const rawLandmarks: Landmarks = {
+        points: [
+          { x: 1.0, y: 1.0, z: 0.0, visibility: 0.9 },
+          { x: 0.8, y: 0.8, z: 0.0, visibility: 0.9 },
+          { x: 0.6, y: 0.6, z: 0.0, visibility: 0.9 }
+        ],
+        timestamp: Date.now()
+      };
+
+      const previousLandmarks: Landmarks = {
+        points: [
+          { x: 0.0, y: 0.0, z: 0.0, visibility: 0.9 }
+          // Only 1 landmark in previous, 3 in raw
+        ],
+        timestamp: Date.now() - 33
+      };
+
+      const smoothed = detector.smoothLandmarks(rawLandmarks, previousLandmarks);
+
+      // First landmark should be smoothed
+      expect(smoothed.points[0].x).toBeCloseTo(0.3, 5);
+      
+      // Second and third landmarks should use raw values (no previous data)
+      expect(smoothed.points[1].x).toBe(0.8);
+      expect(smoothed.points[2].x).toBe(0.6);
+    });
+
+    it('should handle empty previous landmarks array', () => {
+      const rawLandmarks: Landmarks = {
+        points: [
+          { x: 1.0, y: 1.0, z: 0.0, visibility: 0.9 }
+        ],
+        timestamp: Date.now()
+      };
+
+      const previousLandmarks: Landmarks = {
+        points: [],
+        timestamp: Date.now() - 33
+      };
+
+      const smoothed = detector.smoothLandmarks(rawLandmarks, previousLandmarks);
+
+      // Should return raw values when no previous data exists
+      expect(smoothed.points[0].x).toBe(1.0);
+      expect(smoothed.points[0].y).toBe(1.0);
+    });
+
+    it('should handle processFrame when MediaPipe returns null result', async () => {
+      const { PoseLandmarker } = await import('@mediapipe/tasks-vision');
+      
+      // Mock detectForVideo to return null
+      const mockDetectForVideo = vi.fn().mockReturnValue(null);
+      
+      vi.mocked(PoseLandmarker.createFromOptions).mockResolvedValue({
+        detectForVideo: mockDetectForVideo,
+        close: vi.fn()
+      } as any);
+
+      setTimeout(() => {
+        if (mockVideoElement.onloadedmetadata) {
+          mockVideoElement.onloadedmetadata({} as Event);
+        }
+      }, 0);
+
+      await detector.initialize();
+      const result = await detector.processFrame();
+      
+      // Should handle gracefully and return null
+      expect(result).toBeNull();
+    });
+
+    it('should handle processFrame when landmarks array is shorter than expected', async () => {
+      const { PoseLandmarker } = await import('@mediapipe/tasks-vision');
+      
+      // Mock landmarks with only 10 landmarks instead of expected 33
+      const incompleteLandmarks = Array(10).fill(null).map(() => ({
+        x: 0.5,
+        y: 0.5,
+        z: 0.0,
+        visibility: 0.9
+      }));
+      
+      const mockDetectForVideo = vi.fn().mockReturnValue({
+        landmarks: [incompleteLandmarks]
+      });
+      
+      vi.mocked(PoseLandmarker.createFromOptions).mockResolvedValue({
+        detectForVideo: mockDetectForVideo,
+        close: vi.fn()
+      } as any);
+
+      setTimeout(() => {
+        if (mockVideoElement.onloadedmetadata) {
+          mockVideoElement.onloadedmetadata({} as Event);
+        }
+      }, 0);
+
+      await detector.initialize();
+      const result = await detector.processFrame();
+      
+      // Should return null because key joints (indices 11-16) are missing
+      expect(result).toBeNull();
+    });
+
+    it('should handle processFrame when some landmarks are missing required properties', async () => {
+      const { PoseLandmarker } = await import('@mediapipe/tasks-vision');
+      
+      // Mock landmarks where some have missing properties
+      const malformedLandmarks = Array(33).fill(null).map((_, i) => {
+        if (i === 15) {
+          // Left wrist missing visibility property
+          return { x: 0.5, y: 0.5, z: 0.0 } as any;
+        }
+        return { x: 0.5, y: 0.5, z: 0.0, visibility: 0.9 };
+      });
+      
+      const mockDetectForVideo = vi.fn().mockReturnValue({
+        landmarks: [malformedLandmarks]
+      });
+      
+      vi.mocked(PoseLandmarker.createFromOptions).mockResolvedValue({
+        detectForVideo: mockDetectForVideo,
+        close: vi.fn()
+      } as any);
+
+      setTimeout(() => {
+        if (mockVideoElement.onloadedmetadata) {
+          mockVideoElement.onloadedmetadata({} as Event);
+        }
+      }, 0);
+
+      await detector.initialize();
+      const result = await detector.processFrame();
+      
+      // Should handle missing visibility (defaults to 0.0) and return null
+      // because left wrist (key joint) will have visibility 0.0 < threshold 0.5
+      expect(result).toBeNull();
+    });
+
+    it('should handle processFrame when detectForVideo throws an exception', async () => {
+      const { PoseLandmarker } = await import('@mediapipe/tasks-vision');
+      
+      // Mock detectForVideo to throw an error
+      const mockDetectForVideo = vi.fn().mockImplementation(() => {
+        throw new Error('MediaPipe processing error');
+      });
+      
+      vi.mocked(PoseLandmarker.createFromOptions).mockResolvedValue({
+        detectForVideo: mockDetectForVideo,
+        close: vi.fn()
+      } as any);
+
+      setTimeout(() => {
+        if (mockVideoElement.onloadedmetadata) {
+          mockVideoElement.onloadedmetadata({} as Event);
+        }
+      }, 0);
+
+      await detector.initialize();
+      
+      // Should catch the error and return null
+      const result = await detector.processFrame();
+      expect(result).toBeNull();
+    });
+
+    it('should handle landmarks with negative visibility values', () => {
+      const landmarkWithNegativeVisibility: Landmark = { 
+        x: 0.5, 
+        y: 0.5, 
+        z: 0.0, 
+        visibility: -0.5
+      };
+
+      // Should treat negative visibility as below threshold
+      const result = detector.isLandmarkVisible(landmarkWithNegativeVisibility);
+      expect(result).toBe(false);
+    });
+
+    it('should handle landmarks with visibility greater than 1.0', () => {
+      const landmarkWithHighVisibility: Landmark = { 
+        x: 0.5, 
+        y: 0.5, 
+        z: 0.0, 
+        visibility: 1.5
+      };
+
+      // Should accept visibility > 1.0 (MediaPipe sometimes returns values slightly above 1.0)
+      const result = detector.isLandmarkVisible(landmarkWithHighVisibility);
+      expect(result).toBe(true);
+    });
+  });
+
   describe('Task 5.4: Frame processing and landmark extraction', () => {
     it('should extract waist-up landmarks (indices 0-16)', async () => {
       const { PoseLandmarker } = await import('@mediapipe/tasks-vision');

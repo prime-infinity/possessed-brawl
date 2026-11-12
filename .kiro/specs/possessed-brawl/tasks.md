@@ -50,7 +50,7 @@ The implementation uses **TypeScript** for type safety, **MediaPipe Pose** for b
 
 #### Pose Detection and Smoothing
 
-- [-] 5. Implement Pose_Detector component
+- [x] 5. Implement Pose_Detector component
   - [x] 5.1 Create TypeScript interfaces for Landmarks, Landmark, and PoseDetector
     - Define types matching MediaPipe Pose output format (33 landmarks with x, y, z, visibility)
     - Define landmark index constants (NOSE, LEFT_WRIST, RIGHT_WRIST, etc.)
@@ -81,13 +81,13 @@ The implementation uses **TypeScript** for type safety, **MediaPipe Pose** for b
     - Expose alpha as tunable parameter
     - _Requirements: 3.1, 3.3_
 
-  - [ ]* 5.6 Write unit tests for Pose_Detector
+  - [x] 5.6 Write unit tests for Pose_Detector
     - Test webcam initialization flow
     - Test landmark visibility filtering
     - Test EMA smoothing with known input sequences
     - Test error handling for missing landmarks
 
-  - [ ]* 5.7 Write property test for smoothing stability
+  - [x] 5.7 Write property test for smoothing stability
     - **Property 7: Smoothing Increases Stability**
     - **Validates: Requirements 3.2**
     - Generate jittery landmark sequences
