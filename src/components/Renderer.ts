@@ -651,7 +651,9 @@ export class Renderer {
     yPos += lineHeight;
     
     this.ctx.fillStyle = '#fff';
-    this.ctx.fillText(`FPS: ${this.currentFps}`, leftX, yPos);
+    // Use provided FPS if available, otherwise use internal tracking
+    const displayFps = this.currentState.fps !== undefined ? this.currentState.fps.toFixed(1) : this.currentFps;
+    this.ctx.fillText(`FPS: ${displayFps}`, leftX, yPos);
     yPos += lineHeight;
     this.ctx.fillText(`Canvas: ${this.width}x${this.height}`, leftX, yPos);
     yPos += lineHeight * 1.5; // Extra spacing

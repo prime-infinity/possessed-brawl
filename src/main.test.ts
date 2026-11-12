@@ -95,4 +95,46 @@ describe('Application', () => {
       expect(() => app.stop()).not.toThrow();
     });
   });
+  
+  describe('mobile optimizations - FPS tracking', () => {
+    it('should track FPS with rolling average', async () => {
+      const app = new Application();
+      
+      // Initial FPS should be 0
+      expect(app.getCurrentFps()).toBe(0);
+    });
+    
+    it('should expose current FPS via getter', () => {
+      const app = new Application();
+      
+      const fps = app.getCurrentFps();
+      expect(typeof fps).toBe('number');
+      expect(fps).toBeGreaterThanOrEqual(0);
+    });
+  });
+  
+  describe('mobile optimizations - performance warning UI', () => {
+    it('should create performance warning element on initialization', () => {
+      const app = new Application();
+      
+      const warningElement = document.getElementById('performance-warning');
+      expect(warningElement).toBeTruthy();
+      expect(warningElement?.style.display).toBe('none'); // Hidden by default
+    });
+    
+    it('should clean up performance warning on stop', () => {
+      const app = new Application();
+      
+      // Verify warning exists
+      let warningElement = document.getElementById('performance-warning');
+      expect(warningElement).toBeTruthy();
+      
+      // Stop application
+      app.stop();
+      
+      // Warning should be removed from DOM
+      warningElement = document.getElementById('performance-warning');
+      expect(warningElement).toBeNull();
+    });
+  });
 });

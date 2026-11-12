@@ -280,7 +280,7 @@ The implementation uses **TypeScript** for type safety, **MediaPipe Pose** for b
 
 #### Stage 1 Integration and Testing
 
-- [ ] 9. Wire Stage 1 components together
+- [x] 9. Wire Stage 1 components together
   - [x] 9.1 Create main application class coordinating component lifecycle
     - Initialize Pose_Detector
     - Initialize Calibrator
@@ -303,13 +303,13 @@ The implementation uses **TypeScript** for type safety, **MediaPipe Pose** for b
     - Save tuned values to localStorage
     - _Requirements: 4.4, 5.4, 6.5, 7.4, 8.6, 12.5_
 
-  - [ ] 9.4 Add mobile-specific optimizations
+  - [x] 9.4 Add mobile-specific optimizations
     - Use MediaPipe lite model variant
     - Implement frame skipping if FPS drops below threshold
     - Add performance warning if sustained low FPS
     - _Requirements: 1.1_
 
-  - [ ]* 9.5 Write integration tests for Stage 1 flow
+  - [~] 9.5 Write integration tests for Stage 1 flow
     - Test full pipeline: webcam → pose detection → calibration → move detection
     - Test calibration retry flow
     - Test error handling for webcam denial

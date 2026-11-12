@@ -66,11 +66,22 @@ export class Application {
   private targetFps: number = 30;
   private frameInterval: number = 1000 / this.targetFps;
   
+  // FPS tracking for mobile optimization
+  private fpsHistory: number[] = [];
+  private readonly FPS_HISTORY_SIZE = 30; // Track last 30 frames
+  private currentFps: number = 0;
+  private readonly MIN_FPS_THRESHOLD = 20; // Below this, we start frame skipping
+  private readonly LOW_FPS_WARNING_DURATION = 3000; // 3 seconds of low FPS triggers warning
+  private lowFpsStartTime: number | null = null;
+  private frameSkipCounter: number = 0;
+  private readonly FRAME_SKIP_RATIO = 2; // Process every 2nd frame when FPS is low
+  
   // DOM elements
   private canvas: HTMLCanvasElement;
   private startBtn: HTMLButtonElement;
   private loadingScreen: HTMLDivElement;
   private calibrationScreen: HTMLDivElement;
+  private performanceWarning: HTMLDivElement | null = null;
 
   /**
    * Initialize the application with required DOM elements
@@ -92,10 +103,39 @@ export class Application {
     this.calibrationUI = new CalibrationUI({ canvas: this.canvas });
     this.renderer = new Renderer({ canvas: this.canvas });
     
+    // Create performance warning UI element
+    this.createPerformanceWarningUI();
+    
     // Set up event handlers
     this.setupEventHandlers();
     
     console.log('Possessed Brawl - Application initialized');
+  }
+
+  /**
+   * Create performance warning UI element
+   * 
+   * **Validates: Requirement 1.1** - Provide feedback when performance drops below target
+   */
+  private createPerformanceWarningUI(): void {
+    this.performanceWarning = document.createElement('div');
+    this.performanceWarning.id = 'performance-warning';
+    this.performanceWarning.style.position = 'fixed';
+    this.performanceWarning.style.top = '10px';
+    this.performanceWarning.style.left = '50%';
+    this.performanceWarning.style.transform = 'translateX(-50%)';
+    this.performanceWarning.style.backgroundColor = 'rgba(255, 165, 0, 0.9)';
+    this.performanceWarning.style.color = '#fff';
+    this.performanceWarning.style.padding = '10px 20px';
+    this.performanceWarning.style.borderRadius = '5px';
+    this.performanceWarning.style.fontFamily = 'Arial, sans-serif';
+    this.performanceWarning.style.fontSize = '14px';
+    this.performanceWarning.style.zIndex = '10000';
+    this.performanceWarning.style.display = 'none';
+    this.performanceWarning.style.boxShadow = '0 2px 10px rgba(0,0,0,0.3)';
+    this.performanceWarning.textContent = '⚠️ Low performance detected. Frame skipping enabled.';
+    
+    document.body.appendChild(this.performanceWarning);
   }
 
   /**
@@ -192,6 +232,8 @@ export class Application {
    * 
    * Pipeline: webcam → pose detection → calibration (if needed) → move recognition → rendering
    * 
+   * Includes FPS tracking and frame skipping for mobile optimization.
+   * 
    * **Validates: Requirements 1.1, 2.1, 4.1, 9.1**
    */
   private mainLoop = async (): Promise<void> => {
@@ -200,12 +242,24 @@ export class Application {
     const currentTime = performance.now();
     const deltaTime = currentTime - this.lastFrameTime;
     
+    // Update FPS tracking
+    this.updateFpsTracking(deltaTime);
+    
     // Frame rate limiting (20-30 fps target)
     if (deltaTime >= this.frameInterval) {
       this.lastFrameTime = currentTime - (deltaTime % this.frameInterval);
       
+      // Frame skipping logic for low FPS
+      const shouldSkipFrame = this.shouldSkipFrame();
+      
       try {
-        await this.processFrame(deltaTime);
+        if (!shouldSkipFrame) {
+          await this.processFrame(deltaTime);
+        } else {
+          // Skip pose processing but still render to maintain visual feedback
+          this.render();
+          console.log(`Frame skipped - FPS: ${this.currentFps.toFixed(1)}`);
+        }
       } catch (error) {
         console.error('Error processing frame:', error);
         // Continue running despite frame errors
@@ -215,6 +269,95 @@ export class Application {
     // Continue loop
     this.animationFrameId = requestAnimationFrame(this.mainLoop);
   };
+
+  /**
+   * Update FPS tracking with rolling average
+   * 
+   * Tracks FPS over recent frames and detects sustained low performance.
+   * 
+   * **Validates: Requirement 1.1**
+   */
+  private updateFpsTracking(deltaTime: number): void {
+    // Calculate instantaneous FPS
+    const instantFps = deltaTime > 0 ? 1000 / deltaTime : 0;
+    
+    // Add to history
+    this.fpsHistory.push(instantFps);
+    if (this.fpsHistory.length > this.FPS_HISTORY_SIZE) {
+      this.fpsHistory.shift();
+    }
+    
+    // Calculate rolling average FPS
+    if (this.fpsHistory.length > 0) {
+      const sum = this.fpsHistory.reduce((a, b) => a + b, 0);
+      this.currentFps = sum / this.fpsHistory.length;
+    }
+    
+    // Check for sustained low FPS
+    if (this.currentFps < this.MIN_FPS_THRESHOLD) {
+      if (this.lowFpsStartTime === null) {
+        this.lowFpsStartTime = performance.now();
+      } else {
+        const lowFpsDuration = performance.now() - this.lowFpsStartTime;
+        if (lowFpsDuration > this.LOW_FPS_WARNING_DURATION) {
+          this.showPerformanceWarning();
+        }
+      }
+    } else {
+      // FPS recovered
+      if (this.lowFpsStartTime !== null) {
+        this.lowFpsStartTime = null;
+        this.hidePerformanceWarning();
+      }
+    }
+  }
+
+  /**
+   * Determine if current frame should be skipped
+   * 
+   * Frame skipping activates when FPS drops below threshold to reduce processing load.
+   * 
+   * **Validates: Requirement 1.1**
+   */
+  private shouldSkipFrame(): boolean {
+    if (this.currentFps >= this.MIN_FPS_THRESHOLD) {
+      this.frameSkipCounter = 0;
+      return false;
+    }
+    
+    // Skip every Nth frame when FPS is low
+    this.frameSkipCounter++;
+    if (this.frameSkipCounter >= this.FRAME_SKIP_RATIO) {
+      this.frameSkipCounter = 0;
+      return false; // Process this frame
+    }
+    
+    return true; // Skip this frame
+  }
+
+  /**
+   * Show performance warning UI
+   * 
+   * **Validates: Requirement 1.1**
+   */
+  private showPerformanceWarning(): void {
+    if (this.performanceWarning && this.performanceWarning.style.display === 'none') {
+      this.performanceWarning.style.display = 'block';
+      console.warn(`Performance warning: Sustained low FPS (${this.currentFps.toFixed(1)} fps). Frame skipping enabled.`);
+    }
+  }
+
+  /**
+   * Hide performance warning UI
+   * 
+   * **Validates: Requirement 1.1**
+   */
+  private hidePerformanceWarning(): void {
+    if (this.performanceWarning && this.performanceWarning.style.display === 'block') {
+      this.performanceWarning.style.display = 'none';
+      console.log(`Performance recovered: FPS now ${this.currentFps.toFixed(1)}`);
+    }
+  }
 
   /**
    * Process a single frame through the component pipeline
@@ -354,7 +497,7 @@ export class Application {
     // Update simulated stamina for Stage 1 testing
     this.updateSimulatedStamina(detectedMoves, deltaTime);
     
-    // Update renderer with detected moves
+    // Update renderer with detected moves and FPS
     this.renderer.updateState({
       detectedMoves,
       landmarks: this.currentLandmarks,
@@ -362,7 +505,8 @@ export class Application {
       debug: {
         thresholds: this.moveRecognizer.getThresholds(),
         cooldowns: this.moveRecognizer.getCooldowns(),
-        stamina: this.simulatedStamina
+        stamina: this.simulatedStamina,
+        fps: this.currentFps
       }
     });
   }
@@ -504,6 +648,12 @@ export class Application {
       this.tuningUI = null;
     }
     
+    // Clean up performance warning UI
+    if (this.performanceWarning && this.performanceWarning.parentNode) {
+      this.performanceWarning.parentNode.removeChild(this.performanceWarning);
+      this.performanceWarning = null;
+    }
+    
     this.state = AppState.NOT_STARTED;
     console.log('Application stopped');
   }
@@ -520,6 +670,15 @@ export class Application {
    */
   getBaseline(): BaselineData | null {
     return this.baseline;
+  }
+
+  /**
+   * Get current FPS (for debugging/testing)
+   * 
+   * **Validates: Requirement 1.1**
+   */
+  getCurrentFps(): number {
+    return this.currentFps;
   }
 }
 
