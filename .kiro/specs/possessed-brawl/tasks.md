@@ -135,28 +135,28 @@ The implementation uses **TypeScript** for type safety, **MediaPipe Pose** for b
 
 #### Move Detection System
 
-- [ ] 7. Implement Move_Recognizer component
-  - [ ] 7.1 Create TypeScript interfaces for move detection
+- [x] 7. Implement Move_Recognizer component
+  - [x] 7.1 Create TypeScript interfaces for move detection
     - Define DetectedMove interface (type, intensity, timestamp)
     - Define MoveType enum (JAB, POWER_PUNCH, DUCK, BLOCK, CHARGE, NONE)
     - Define ThresholdConfig interface with all tunable parameters
     - _Requirements: 4.4, 5.4, 6.5, 7.4, 8.6, 12.5_
 
-  - [ ] 7.2 Implement jab detection with cooldown
+  - [x] 7.2 Implement jab detection with cooldown
     - Detect left wrist forward movement beyond threshold (z-axis delta)
     - Apply cooldown timer after detection
     - Block detection during cooldown period
     - Expose tunable threshold and cooldown parameters
     - _Requirements: 4.1, 4.2, 4.3, 4.4_
 
-  - [ ] 7.3 Implement power punch detection with cooldown
+  - [x] 7.3 Implement power punch detection with cooldown
     - Detect right wrist forward movement beyond threshold (z-axis delta)
     - Apply cooldown timer after detection
     - Block detection during cooldown period
     - Expose tunable threshold and cooldown parameters
     - _Requirements: 5.1, 5.2, 5.3, 5.4_
 
-  - [ ] 7.4 Implement duck detection with time window
+  - [x] 7.4 Implement duck detection with time window
     - Detect head and shoulder drop below threshold
     - Verify drop occurs within time window (speed check)
     - Apply cooldown timer after detection
@@ -164,14 +164,14 @@ The implementation uses **TypeScript** for type safety, **MediaPipe Pose** for b
     - Expose tunable threshold, time window, and cooldown parameters
     - _Requirements: 6.1, 6.2, 6.3, 6.4, 6.5_
 
-  - [ ] 7.5 Implement block detection (continuous, no cooldown)
+  - [x] 7.5 Implement block detection (continuous, no cooldown)
     - Detect both wrists within threshold distance of head
     - Maintain block state while hands remain near face
     - Stop block when hands move away beyond threshold
     - Expose tunable proximity threshold parameter
     - _Requirements: 7.1, 7.2, 7.3, 7.4_
 
-  - [ ] 7.6 Implement charge attack detection with stamina gating
+  - [x] 7.6 Implement charge attack detection with stamina gating
     - Detect charge preparation: both wrists within threshold distance of each other
     - Detect charge release: wrists separate beyond release threshold
     - Check stamina level (simulated for Stage 1, integrated in Stage 2)
@@ -180,13 +180,13 @@ The implementation uses **TypeScript** for type safety, **MediaPipe Pose** for b
     - Expose tunable proximity, release, stamina threshold, and cooldown parameters
     - _Requirements: 8.1, 8.2, 8.3, 8.4, 8.5, 8.6_
 
-  - [ ] 7.7 Implement cooldown timer management
+  - [x] 7.7 Implement cooldown timer management
     - Track cooldown remaining for each move type independently
     - Update cooldowns each frame based on deltaTime
     - Provide method to query cooldown status for debug display
     - _Requirements: 4.2, 4.3, 5.2, 5.3, 6.3, 6.4, 8.4, 8.5_
 
-  - [ ] 7.8 Implement move conflict resolution
+  - [x] 7.8 Implement move conflict resolution
     - Define move priority order: CHARGE > BLOCK > DUCK > POWER_PUNCH > JAB
     - When multiple moves detected simultaneously, emit highest priority only
     - _Requirements: 4.1, 5.1, 6.1, 7.1, 8.1_

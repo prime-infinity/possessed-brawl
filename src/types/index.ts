@@ -7,6 +7,9 @@
 // Re-export pose-specific types and constants
 export * from './pose';
 
+// Re-export move detection types and constants
+export * from './move';
+
 /**
  * A single body landmark point from MediaPipe Pose
  */
