@@ -12,7 +12,9 @@ import { Calibrator, CalibrationState } from './components/Calibrator';
 import { CalibrationUI } from './components/CalibrationUI';
 import { MoveRecognizer } from './components/MoveRecognizer';
 import { Renderer } from './components/Renderer';
+import { ThresholdTuningUI } from './components/ThresholdTuningUI';
 import { Landmarks, BaselineData, MoveType } from './types';
+import { ThresholdConfig } from './types/move';
 
 /**
  * Application state enumeration
@@ -44,6 +46,7 @@ export class Application {
   private calibrationUI: CalibrationUI;
   private moveRecognizer: MoveRecognizer | null = null;
   private renderer: Renderer;
+  private tuningUI: ThresholdTuningUI | null = null;
   
   // State management
   private state: AppState = AppState.NOT_STARTED;
@@ -114,6 +117,14 @@ export class Application {
           this.calibrator.getState() === CalibrationState.FAILED) {
         console.log('Retrying calibration...');
         this.calibrator.retry();
+      }
+      
+      // Threshold tuning UI toggle (T key)
+      if (e.key.toLowerCase() === 't') {
+        if (this.tuningUI) {
+          this.tuningUI.toggle();
+          console.log(`Threshold tuning UI ${this.tuningUI.getIsVisible() ? 'shown' : 'hidden'}`);
+        }
       }
     });
     
@@ -298,6 +309,19 @@ export class Application {
     this.moveRecognizer = new MoveRecognizer();
     console.log('MoveRecognizer initialized');
     
+    // Initialize threshold tuning UI
+    this.tuningUI = new ThresholdTuningUI(
+      document.body,
+      (config: ThresholdConfig) => {
+        // Update move recognizer when thresholds change
+        if (this.moveRecognizer) {
+          this.moveRecognizer.setThresholds(config);
+          console.log('Thresholds updated:', config);
+        }
+      }
+    );
+    console.log('Threshold tuning UI initialized (press T to toggle)');
+    
     // Transition to active state after a brief delay to show completion message
     setTimeout(() => {
       // Transition to active state
@@ -473,6 +497,12 @@ export class Application {
     
     this.renderer.stop();
     this.poseDetector.dispose();
+    
+    // Clean up tuning UI if it exists
+    if (this.tuningUI) {
+      this.tuningUI.dispose();
+      this.tuningUI = null;
+    }
     
     this.state = AppState.NOT_STARTED;
     console.log('Application stopped');

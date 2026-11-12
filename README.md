@@ -68,6 +68,35 @@ Stand in a boxing guard position with hands up near your face. The system will c
 - **Move Forward**: Widen shoulders
 - **Move Backward**: Narrow shoulders
 
+### Developer Controls
+- **T Key**: Toggle threshold tuning UI (after calibration)
+- **D Key**: Toggle debug overlay
+
+## Developer Features
+
+### Threshold Tuning UI
+
+The threshold tuning UI allows developers to fine-tune move detection parameters in real-time:
+
+- **Access**: Press `T` key after calibration to toggle the UI
+- **Features**:
+  - Sliders for all move detection thresholds
+  - Adjustable cooldown durations
+  - Real-time value updates
+  - Automatic localStorage persistence
+  - Reset to defaults button
+- **Location**: Top-right corner of the screen
+
+The tuning UI exposes parameters for:
+- **Jab**: Threshold distance, cooldown
+- **Power Punch**: Threshold distance, cooldown
+- **Duck**: Threshold distance, time window, cooldown
+- **Block**: Proximity threshold
+- **Charge**: Proximity threshold, release threshold, stamina threshold, cooldown
+- **Depth Control**: Forward/backward shoulder width thresholds
+
+All tuned values are saved to localStorage and persist across sessions.
+
 ## Development Stages
 
 ### Stage 1 (Current)

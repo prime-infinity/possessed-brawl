@@ -296,7 +296,7 @@ The implementation uses **TypeScript** for type safety, **MediaPipe Pose** for b
     - Transition to move detection mode after successful calibration
     - _Requirements: 2.1, 2.2, 2.3_
 
-  - [ ] 9.3 Implement threshold tuning UI for development
+  - [x] 9.3 Implement threshold tuning UI for development
     - Add sliders for each move type's threshold values
     - Add sliders for cooldown durations
     - Display current values alongside sliders
