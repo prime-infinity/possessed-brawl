@@ -142,6 +142,65 @@
         "chatSessionId": "sess_8f8253e8-6a60-4626-ab5c-e7c153a5b699",
         "timestamp": 1794463747618
       }
+    ],
+    "6. Implement Calibrator component": [
+      {
+        "executionId": "3701d09e-7eea-4d86-a7e8-439c1252017e",
+        "chatSessionId": "sess_d414c5aa-6e57-4e4d-bd69-388b21f50b4e",
+        "timestamp": 1794464980885
+      },
+      {
+        "executionId": "3701d09e-7eea-4d86-a7e8-439c1252017e",
+        "chatSessionId": "sess_d414c5aa-6e57-4e4d-bd69-388b21f50b4e",
+        "timestamp": 1794465344192
+      }
+    ],
+    "6.1 Create TypeScript interfaces for BaselineData and Calibrator": [
+      {
+        "executionId": "c7a4f526-086d-4b97-9891-50439c186d94",
+        "chatSessionId": "sess_d414c5aa-6e57-4e4d-bd69-388b21f50b4e",
+        "timestamp": 1794465560374
+      }
+    ],
+    "6.2 Implement guard position detection": [
+      {
+        "executionId": "c7a4f526-086d-4b97-9891-50439c186d94",
+        "chatSessionId": "sess_d414c5aa-6e57-4e4d-bd69-388b21f50b4e",
+        "timestamp": 1794465561092
+      }
+    ],
+    "6.3 Implement calibration UI with visual guide": [
+      {
+        "executionId": "c7a4f526-086d-4b97-9891-50439c186d94",
+        "chatSessionId": "sess_d414c5aa-6e57-4e4d-bd69-388b21f50b4e",
+        "timestamp": 1794465561978
+      }
+    ],
+    "6.4 Implement baseline recording during calibration period": [
+      {
+        "executionId": "c7a4f526-086d-4b97-9891-50439c186d94",
+        "chatSessionId": "sess_d414c5aa-6e57-4e4d-bd69-388b21f50b4e",
+        "timestamp": 1794465562539
+      }
+    ],
+    "6.5 Implement calibration quality checks and retry logic": [
+      {
+        "executionId": "c7a4f526-086d-4b97-9891-50439c186d94",
+        "chatSessionId": "sess_d414c5aa-6e57-4e4d-bd69-388b21f50b4e",
+        "timestamp": 1794465564279
+      }
+    ],
+    "6.6 Write unit tests for Calibrator": [
+      {
+        "executionId": "b8abc18a-0975-42e8-9d5c-e58e1923d0f0",
+        "chatSessionId": "sess_f350b368-b98d-4c88-9f43-28e121e75f11",
+        "timestamp": 1794465707872
+      },
+      {
+        "executionId": "b8abc18a-0975-42e8-9d5c-e58e1923d0f0",
+        "chatSessionId": "sess_f350b368-b98d-4c88-9f43-28e121e75f11",
+        "timestamp": 1794465773607
+      }
     ]
   }
 }

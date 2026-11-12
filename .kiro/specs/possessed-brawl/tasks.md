@@ -95,39 +95,39 @@ The implementation uses **TypeScript** for type safety, **MediaPipe Pose** for b
 
 #### Calibration System
 
-- [ ] 6. Implement Calibrator component
-  - [ ] 6.1 Create TypeScript interfaces for BaselineData and Calibrator
+- [x] 6. Implement Calibrator component
+  - [x] 6.1 Create TypeScript interfaces for BaselineData and Calibrator
     - Define baseline data structure (centerPosition, shoulderWidth, headHeight, wrist baselines)
     - Define calibration progress tracking
     - _Requirements: 2.4, 2.5, 2.6, 2.7_
 
-  - [ ] 6.2 Implement guard position detection
+  - [x] 6.2 Implement guard position detection
     - Detect both wrists within threshold distance of head
     - Verify shoulders are level (vertical difference < threshold)
     - Verify head is upright
     - _Requirements: 2.2_
 
-  - [ ] 6.3 Implement calibration UI with visual guide
+  - [x] 6.3 Implement calibration UI with visual guide
     - Display text prompt explaining guard position
     - Show stick-figure diagram demonstrating correct stance
     - Display real-time confirmation when guard position detected
     - _Requirements: 2.1, 2.3_
 
-  - [ ] 6.4 Implement baseline recording during calibration period
+  - [x] 6.4 Implement baseline recording during calibration period
     - Record 1 second (20-30 frames) of landmark data
     - Calculate mean values for center position, shoulder width, head height
     - Calculate baseline wrist positions in guard stance
     - Store baseline measurements for move detection
     - _Requirements: 2.4, 2.5, 2.6, 2.7_
 
-  - [ ] 6.5 Implement calibration quality checks and retry logic
+  - [x] 6.5 Implement calibration quality checks and retry logic
     - Validate minimum frame count collected
     - Handle low visibility frames during calibration (exclude from averaging)
     - Extend calibration period if insufficient good frames
     - Provide retry option if calibration fails
     - _Requirements: 2.2, 2.3_
 
-  - [ ]* 6.6 Write unit tests for Calibrator
+  - [x] 6.6 Write unit tests for Calibrator
     - Test guard position detection with valid/invalid poses
     - Test baseline averaging with synthetic landmark data
     - Test incomplete calibration rejection
