@@ -357,6 +357,18 @@
         "chatSessionId": "sess_7b62b392-7eb5-4ca1-8c4c-a97ef26a64dc",
         "timestamp": 1794472083594
       }
+    ],
+    "9.1 Create main application class coordinating component lifecycle": [
+      {
+        "executionId": "ccdf3cb6-2b53-48fb-9e26-b7daa3c5ff96",
+        "chatSessionId": "sess_7622f9af-60e1-4271-9e2a-bf5845624f5e",
+        "timestamp": 1794472369663
+      },
+      {
+        "executionId": "ccdf3cb6-2b53-48fb-9e26-b7daa3c5ff96",
+        "chatSessionId": "sess_7622f9af-60e1-4271-9e2a-bf5845624f5e",
+        "timestamp": 1794472752777
+      }
     ]
   }
 }
