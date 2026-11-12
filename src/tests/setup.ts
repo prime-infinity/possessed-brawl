@@ -78,9 +78,17 @@ class MockCanvasRenderingContext2D {
 }
 
 // Mock HTMLCanvasElement.getContext
+const canvasContextMap = new WeakMap<HTMLCanvasElement, MockCanvasRenderingContext2D>();
+
 HTMLCanvasElement.prototype.getContext = vi.fn(function(this: HTMLCanvasElement, contextType: string) {
   if (contextType === '2d') {
-    return new MockCanvasRenderingContext2D(this) as any;
+    // Return cached context if it exists, otherwise create and cache a new one
+    let context = canvasContextMap.get(this);
+    if (!context) {
+      context = new MockCanvasRenderingContext2D(this);
+      canvasContextMap.set(this, context);
+    }
+    return context as any;
   }
   return null;
 });

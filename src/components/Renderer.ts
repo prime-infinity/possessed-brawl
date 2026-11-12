@@ -280,6 +280,11 @@ export class Renderer {
       this.drawPoseLandmarks(this.currentState.landmarks);
     }
     
+    // Draw baseline reference visualization if available
+    if (this.currentState.baseline) {
+      this.drawBaselineReference(this.currentState.baseline);
+    }
+    
     // Draw debug overlay if enabled
     if (this.debugMode) {
       this.drawDebugInfo();
@@ -333,6 +338,173 @@ export class Renderer {
       this.ctx.beginPath();
       this.ctx.arc(pixel.x, pixel.y, radius, 0, 2 * Math.PI);
       this.ctx.fill();
+    }
+    
+    this.ctx.restore();
+  }
+  
+  /**
+   * Draw baseline reference visualization
+   * 
+   * Task 8.4: Baseline reference visualization
+   * - Draws baseline shoulder line
+   * - Draws center position marker
+   * - Draws baseline wrist positions
+   * - Shows calibration quality metrics
+   * Requirements: 2.7, 9.3
+   * 
+   * @param baseline - The baseline data to visualize
+   */
+  private drawBaselineReference(baseline: BaselineData): void {
+    this.ctx.save();
+    
+    // Use yellow color for baseline reference (distinct from pose landmarks)
+    const baselineColor = '#ffff00';
+    const markerRadius = 8;
+    const lineWidth = 3;
+    
+    // Calculate shoulder positions from center and shoulder width
+    // Shoulders are horizontally aligned at the center Y position
+    const halfWidth = baseline.shoulderWidth / 2;
+    const leftShoulderPos = {
+      x: baseline.centerPosition.x - halfWidth,
+      y: baseline.centerPosition.y
+    };
+    const rightShoulderPos = {
+      x: baseline.centerPosition.x + halfWidth,
+      y: baseline.centerPosition.y
+    };
+    
+    // 1. Draw baseline shoulder line
+    const leftShoulderPixel = this.normalizedToPixels(leftShoulderPos.x, leftShoulderPos.y);
+    const rightShoulderPixel = this.normalizedToPixels(rightShoulderPos.x, rightShoulderPos.y);
+    
+    this.ctx.strokeStyle = baselineColor;
+    this.ctx.lineWidth = lineWidth;
+    this.ctx.lineCap = 'round';
+    this.ctx.beginPath();
+    this.ctx.moveTo(leftShoulderPixel.x, leftShoulderPixel.y);
+    this.ctx.lineTo(rightShoulderPixel.x, rightShoulderPixel.y);
+    this.ctx.stroke();
+    
+    // 2. Draw center position marker (cross)
+    const centerPixel = this.normalizedToPixels(baseline.centerPosition.x, baseline.centerPosition.y);
+    const crossSize = 10;
+    
+    this.ctx.strokeStyle = baselineColor;
+    this.ctx.lineWidth = 2;
+    
+    // Vertical line of cross
+    this.ctx.beginPath();
+    this.ctx.moveTo(centerPixel.x, centerPixel.y - crossSize);
+    this.ctx.lineTo(centerPixel.x, centerPixel.y + crossSize);
+    this.ctx.stroke();
+    
+    // Horizontal line of cross
+    this.ctx.beginPath();
+    this.ctx.moveTo(centerPixel.x - crossSize, centerPixel.y);
+    this.ctx.lineTo(centerPixel.x + crossSize, centerPixel.y);
+    this.ctx.stroke();
+    
+    // Outer circle around center
+    this.ctx.strokeStyle = baselineColor;
+    this.ctx.lineWidth = 2;
+    this.ctx.beginPath();
+    this.ctx.arc(centerPixel.x, centerPixel.y, markerRadius, 0, 2 * Math.PI);
+    this.ctx.stroke();
+    
+    // 3. Draw baseline wrist positions (circles with labels)
+    const leftWristPixel = this.normalizedToPixels(
+      baseline.leftWristBaseline.x,
+      baseline.leftWristBaseline.y
+    );
+    const rightWristPixel = this.normalizedToPixels(
+      baseline.rightWristBaseline.x,
+      baseline.rightWristBaseline.y
+    );
+    
+    // Left wrist marker
+    this.ctx.fillStyle = baselineColor;
+    this.ctx.globalAlpha = 0.5;
+    this.ctx.beginPath();
+    this.ctx.arc(leftWristPixel.x, leftWristPixel.y, markerRadius, 0, 2 * Math.PI);
+    this.ctx.fill();
+    
+    this.ctx.globalAlpha = 1.0;
+    this.ctx.strokeStyle = baselineColor;
+    this.ctx.lineWidth = 2;
+    this.ctx.beginPath();
+    this.ctx.arc(leftWristPixel.x, leftWristPixel.y, markerRadius, 0, 2 * Math.PI);
+    this.ctx.stroke();
+    
+    // Right wrist marker
+    this.ctx.fillStyle = baselineColor;
+    this.ctx.globalAlpha = 0.5;
+    this.ctx.beginPath();
+    this.ctx.arc(rightWristPixel.x, rightWristPixel.y, markerRadius, 0, 2 * Math.PI);
+    this.ctx.fill();
+    
+    this.ctx.globalAlpha = 1.0;
+    this.ctx.strokeStyle = baselineColor;
+    this.ctx.lineWidth = 2;
+    this.ctx.beginPath();
+    this.ctx.arc(rightWristPixel.x, rightWristPixel.y, markerRadius, 0, 2 * Math.PI);
+    this.ctx.stroke();
+    
+    // Add labels for wrists
+    this.ctx.fillStyle = baselineColor;
+    this.ctx.font = '10px monospace';
+    this.ctx.textAlign = 'center';
+    this.ctx.textBaseline = 'middle';
+    this.ctx.fillText('L', leftWristPixel.x, leftWristPixel.y);
+    this.ctx.fillText('R', rightWristPixel.x, rightWristPixel.y);
+    
+    // 4. Draw calibration quality metrics text overlay
+    // Position in bottom-left corner
+    const metricsX = 10;
+    const metricsY = this.height - 80;
+    const metricsLineHeight = 14;
+    
+    this.ctx.fillStyle = '#ffff00'; // Yellow header
+    this.ctx.font = '12px monospace';
+    this.ctx.textAlign = 'left';
+    this.ctx.textBaseline = 'top';
+    this.ctx.fillText('=== BASELINE ===', metricsX, metricsY);
+    
+    this.ctx.fillStyle = '#fff';
+    let metricsYPos = metricsY + metricsLineHeight;
+    
+    // Display shoulder width
+    this.ctx.fillText(
+      `Shoulder Width: ${baseline.shoulderWidth.toFixed(3)}`,
+      metricsX,
+      metricsYPos
+    );
+    metricsYPos += metricsLineHeight;
+    
+    // Display head height
+    this.ctx.fillText(
+      `Head Height: ${baseline.headHeight.toFixed(3)}`,
+      metricsX,
+      metricsYPos
+    );
+    metricsYPos += metricsLineHeight;
+    
+    // Display center position
+    this.ctx.fillText(
+      `Center: (${baseline.centerPosition.x.toFixed(2)}, ${baseline.centerPosition.y.toFixed(2)})`,
+      metricsX,
+      metricsYPos
+    );
+    metricsYPos += metricsLineHeight;
+    
+    // Display calibration status from debug data if available
+    if (this.currentState.debug?.calibrationFrames !== undefined) {
+      this.ctx.fillText(
+        `Frames: ${this.currentState.debug.calibrationFrames}`,
+        metricsX,
+        metricsYPos
+      );
     }
     
     this.ctx.restore();

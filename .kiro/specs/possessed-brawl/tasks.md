@@ -261,7 +261,7 @@ The implementation uses **TypeScript** for type safety, **MediaPipe Pose** for b
     - Display FPS counter
     - _Requirements: 9.1, 9.2, 9.3, 9.4, 9.5_
 
-  - [ ] 8.4 Implement baseline reference visualization
+  - [x] 8.4 Implement baseline reference visualization
     - Draw baseline shoulder line
     - Draw center position marker
     - Draw baseline wrist positions
