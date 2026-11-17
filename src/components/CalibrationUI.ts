@@ -100,6 +100,13 @@ export class CalibrationUI {
     // Clear the canvas
     ctx.clearRect(0, 0, canvas.width, canvas.height);
 
+    // Clear overlay for non-waiting/recording states
+    if (state !== CalibrationState.WAITING_FOR_GUARD && 
+        state !== CalibrationState.RECORDING && 
+        state !== CalibrationState.COMPLETED) {
+      this.removeTextOverlay();
+    }
+    
     switch (state) {
       case CalibrationState.NOT_STARTED:
         this.renderNotStartedScreen();
@@ -270,27 +277,8 @@ export class CalibrationUI {
     const canvas = this.config.canvas;
     const ctx = this.ctx;
     
-    ctx.save();
-    ctx.fillStyle = this.config.confirmationColor;
-    ctx.font = `${this.config.fontSize * 1.2}px Arial`;
-    ctx.textAlign = 'center';
-    ctx.textBaseline = 'middle';
-    
-    ctx.fillText(
-      '✓ Calibration Complete!',
-      canvas.width / 2,
-      canvas.height / 2
-    );
-    
-    ctx.font = `${this.config.fontSize * 0.7}px Arial`;
-    ctx.fillStyle = this.config.textColor;
-    ctx.fillText(
-      'Get ready to fight...',
-      canvas.width / 2,
-      canvas.height / 2 + this.config.fontSize * 1.5
-    );
-    
-    ctx.restore();
+    // Use HTML overlay
+    this.updateTextOverlay('✓ Calibration Complete!', 'Get ready to fight...');
   }
 
   /**

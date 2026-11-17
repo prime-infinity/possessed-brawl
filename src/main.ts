@@ -512,6 +512,10 @@ export class Application {
     
     // Transition to active state after a brief delay to show completion message
     setTimeout(() => {
+      // Remove calibration text overlay
+      const overlay = document.getElementById('calibration-text-overlay');
+      if (overlay) overlay.remove();
+      
       this.hideVideoPreview();
       // Transition to active state
       this.state = AppState.ACTIVE;
