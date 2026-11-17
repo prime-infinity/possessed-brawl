@@ -154,15 +154,16 @@ export class CalibrationUI {
   /**
    * Update HTML text overlay (cleaner than canvas text)
    */
-  private updateTextOverlay(title: string, subtitle: string): void {
+  private updateTextOverlay(title: string, subtitle: string, showProgress: boolean = false, progress: number = 0): void {
     let overlay = document.getElementById('calibration-text-overlay');
     if (!overlay) {
       overlay = document.createElement('div');
       overlay.id = 'calibration-text-overlay';
       overlay.style.position = 'fixed';
-      overlay.style.top = '20px';
-      overlay.style.left = '0';
-      overlay.style.right = '0';
+      overlay.style.top = showProgress ? '50%' : '20px';
+      overlay.style.left = showProgress ? '50%' : '0';
+      overlay.style.right = showProgress ? 'auto' : '0';
+      overlay.style.transform = showProgress ? 'translate(-50%, -50%)' : 'none';
       overlay.style.textAlign = 'center';
       overlay.style.color = '#fff';
       overlay.style.zIndex = '999';
@@ -170,10 +171,12 @@ export class CalibrationUI {
       document.body.appendChild(overlay);
     }
     
-    overlay.innerHTML = `
-      <div style="font-size: 20px; font-weight: 600; margin-bottom: 8px;">${title}</div>
-      <div style="font-size: 14px; color: #ccc;">${subtitle}</div>
-    `;
+    let progressHTML = '';
+    if (showProgress) {
+      progressHTML = `<div style="width: 300px; height: 8px; background: rgba(255,255,255,0.2); border-radius: 10px; margin: 20px auto; overflow: hidden;"><div style="width: ${progress * 100}%; height: 100%; background: linear-gradient(90deg, #00ff41, #00d9ff); transition: width 0.3s;"></div></div><div style="font-size: 18px; font-weight: 700; color: #00ff41;">${Math.round(progress * 100)}%</div>`;
+    }
+    
+    overlay.innerHTML = `<div style="font-size: 24px; font-weight: 600; margin-bottom: 12px;">${title}</div><div style="font-size: 16px; color: #ccc; margin-bottom: 10px;">${subtitle}</div>${progressHTML}`;
   }
 
   /**
@@ -215,59 +218,7 @@ export class CalibrationUI {
    * @param progress - Progress value (0-1)
    */
   private renderRecordingScreen(progress: number): void {
-    const canvas = this.config.canvas;
-    const ctx = this.ctx;
-    
-    // Draw instruction text
-    ctx.imageSmoothingEnabled = true;
-    ctx.imageSmoothingQuality = "high";
-    ctx.save();
-    ctx.fillStyle = this.config.textColor;
-    ctx.font = `${this.config.fontSize}px Arial`;
-    ctx.textAlign = 'center';
-    ctx.textBaseline = 'top';
-    
-    ctx.fillText(
-      'Hold Still - Recording...',
-      canvas.width / 2,
-      50
-    );
-    
-    ctx.restore();
-
-    // Draw progress bar
-    const barWidth = 400;
-    const barHeight = 30;
-    const barX = (canvas.width - barWidth) / 2;
-    const barY = canvas.height / 2 - barHeight / 2;
-    
-    ctx.save();
-    
-    // Background
-    ctx.fillStyle = 'rgba(255, 255, 255, 0.2)';
-    ctx.fillRect(barX, barY, barWidth, barHeight);
-    
-    // Progress fill
-    ctx.fillStyle = this.config.confirmationColor;
-    ctx.fillRect(barX, barY, barWidth * progress, barHeight);
-    
-    // Border
-    ctx.strokeStyle = this.config.textColor;
-    ctx.lineWidth = 2;
-    ctx.strokeRect(barX, barY, barWidth, barHeight);
-    
-    // Percentage text
-    ctx.fillStyle = this.config.textColor;
-    ctx.font = `${this.config.fontSize * 0.8}px Arial`;
-    ctx.textAlign = 'center';
-    ctx.textBaseline = 'middle';
-    ctx.fillText(
-      `${Math.round(progress * 100)}%`,
-      canvas.width / 2,
-      barY + barHeight / 2
-    );
-    
-    ctx.restore();
+    this.updateTextOverlay('Hold Still', 'Recording calibration data...', true, progress);
   }
 
   /**
