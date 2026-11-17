@@ -144,6 +144,40 @@ export class CalibrationUI {
     
     ctx.restore();
   }
+  /**
+   * Update HTML text overlay (cleaner than canvas text)
+   */
+  private updateTextOverlay(title: string, subtitle: string): void {
+    let overlay = document.getElementById('calibration-text-overlay');
+    if (!overlay) {
+      overlay = document.createElement('div');
+      overlay.id = 'calibration-text-overlay';
+      overlay.style.position = 'fixed';
+      overlay.style.top = '20px';
+      overlay.style.left = '0';
+      overlay.style.right = '0';
+      overlay.style.textAlign = 'center';
+      overlay.style.color = '#fff';
+      overlay.style.zIndex = '999';
+      overlay.style.pointerEvents = 'none';
+      document.body.appendChild(overlay);
+    }
+    
+    overlay.innerHTML = `
+      <div style="font-size: 20px; font-weight: 600; margin-bottom: 8px;">${title}</div>
+      <div style="font-size: 14px; color: #ccc;">${subtitle}</div>
+    `;
+  }
+
+  /**
+   * Remove text overlay
+   */
+  private removeTextOverlay(): void {
+    const overlay = document.getElementById('calibration-text-overlay');
+    if (overlay) overlay.remove();
+  }
+
+
 
   /**
    * Render waiting for guard position screen
@@ -154,28 +188,8 @@ export class CalibrationUI {
     const canvas = this.config.canvas;
     const ctx = this.ctx;
     
-    // Draw instruction text
-    ctx.save();
-    ctx.fillStyle = this.config.textColor;
-    ctx.font = `${this.config.fontSize}px Arial`;
-    ctx.textAlign = 'center';
-    ctx.textBaseline = 'top';
-    
-    const instructionY = 50;
-    ctx.fillText(
-      'Assume Guard Position',
-      canvas.width / 2,
-      instructionY
-    );
-    
-    ctx.font = `${this.config.fontSize * 0.7}px Arial`;
-    ctx.fillText(
-      'Raise both hands to your face, like a boxer',
-      canvas.width / 2,
-      instructionY + this.config.fontSize + 10
-    );
-    
-    ctx.restore();
+    // Use HTML overlay for crisp text
+    this.updateTextOverlay('Assume Guard Position', 'Hands up near face, elbows tucked close to body');
 
     // Draw stick figure demonstration
     this.drawGuardPositionDiagram();
@@ -198,6 +212,8 @@ export class CalibrationUI {
     const ctx = this.ctx;
     
     // Draw instruction text
+    ctx.imageSmoothingEnabled = true;
+    ctx.imageSmoothingQuality = "high";
     ctx.save();
     ctx.fillStyle = this.config.textColor;
     ctx.font = `${this.config.fontSize}px Arial`;
@@ -326,10 +342,10 @@ export class CalibrationUI {
     
     // Center the diagram
     const centerX = canvas.width / 2;
-    const centerY = canvas.height / 2 + 50;
+    const centerY = canvas.height / 2 + 80;
     
     // Scale factor for the diagram
-    const scale = 100;
+    const scale = 70;
     
     ctx.save();
     ctx.strokeStyle = this.config.diagramColor;
@@ -361,7 +377,7 @@ export class CalibrationUI {
     
     // Left arm (bent, hand near face)
     const leftShoulderX = centerX - shoulderHalfWidth;
-    const leftElbowX = centerX - scale * 0.6;
+    const leftElbowX = centerX - scale * 0.15;
     const leftElbowY = centerY - scale * 0.3;
     const leftWristX = centerX - scale * 0.2;
     const leftWristY = centerY - scale * 1.0;  // Near face
@@ -374,7 +390,7 @@ export class CalibrationUI {
     
     // Right arm (bent, hand near face)
     const rightShoulderX = centerX + shoulderHalfWidth;
-    const rightElbowX = centerX + scale * 0.6;
+    const rightElbowX = centerX + scale * 0.15;
     const rightElbowY = centerY - scale * 0.3;
     const rightWristX = centerX + scale * 0.2;
     const rightWristY = centerY - scale * 1.0;  // Near face
@@ -398,16 +414,12 @@ export class CalibrationUI {
     const hipHalfWidth = scale * 0.15;
     const footY = centerY + scale * 0.8;
     
-    // Left leg
     ctx.beginPath();
     ctx.moveTo(centerX - hipHalfWidth, hipY);
-    ctx.lineTo(centerX - hipHalfWidth, footY);
     ctx.stroke();
     
-    // Right leg
     ctx.beginPath();
     ctx.moveTo(centerX + hipHalfWidth, hipY);
-    ctx.lineTo(centerX + hipHalfWidth, footY);
     ctx.stroke();
     
     ctx.restore();
