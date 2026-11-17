@@ -51,6 +51,7 @@ export class Application {
   // State management
   private state: AppState = AppState.NOT_STARTED;
   private isRunning: boolean = false;
+  private calibrationCompleted: boolean = false;
   private animationFrameId: number | null = null;
   
   // Pose data
@@ -139,6 +140,42 @@ export class Application {
   }
 
   /**
+   * Show video preview in bottom-right corner
+   */
+  private showVideoPreview(): void {
+    const video = this.poseDetector.getVideoElement();
+    if (video) {
+      video.style.display = 'block';
+      video.style.position = 'fixed';
+      video.style.top = 'auto';
+      video.style.left = 'auto';
+      video.style.bottom = '20px';
+      video.style.right = '20px';
+      video.style.width = '240px';
+      video.style.height = '180px';
+      video.style.border = '3px solid #00ff41';
+      video.style.borderRadius = '12px';
+      video.style.opacity = '1';
+      video.style.zIndex = '1000';
+      video.style.boxShadow = '0 4px 20px rgba(0, 255, 65, 0.5)';
+      video.style.objectFit = 'cover';
+      video.style.pointerEvents = 'none';
+    }
+  }
+
+  /**
+   * Hide video preview
+   */
+  private hideVideoPreview(): void {
+    const video = this.poseDetector.getVideoElement();
+    if (video) {
+      video.style.display = 'none';
+    }
+  }
+
+
+
+  /**
    * Set up event handlers for user interaction
    */
   private setupEventHandlers(): void {
@@ -209,6 +246,7 @@ export class Application {
       
       // Show canvas for rendering
       this.canvas.classList.add('active');
+      this.showVideoPreview();
       
       // Start calibration
       this.state = AppState.CALIBRATING;
@@ -369,7 +407,11 @@ export class Application {
     const rawLandmarks = await this.poseDetector.processFrame();
     
     if (!rawLandmarks) {
-      // No pose detected this frame, continue with previous data
+      // No pose detected this frame
+      // Still render calibration UI if in calibration state
+      if (this.state === AppState.CALIBRATING) {
+        this.render();
+      }
       return;
     }
     
@@ -440,6 +482,9 @@ export class Application {
   private onCalibrationComplete(): void {
     console.log('Calibration completed successfully');
     
+    if (this.calibrationCompleted) return;
+    this.calibrationCompleted = true;
+    
     // Get baseline data
     this.baseline = this.calibrator.getBaseline();
     
@@ -467,6 +512,7 @@ export class Application {
     
     // Transition to active state after a brief delay to show completion message
     setTimeout(() => {
+      this.hideVideoPreview();
       // Transition to active state
       this.state = AppState.ACTIVE;
       console.log('Application now active - move detection enabled');
