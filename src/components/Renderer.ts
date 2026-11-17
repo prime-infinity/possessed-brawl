@@ -632,173 +632,116 @@ export class Renderer {
    * Requirements: 9.1, 9.2, 9.3, 9.4, 9.5
    */
   private drawDebugInfo(): void {
-    this.ctx.save();
-    
-    // Configure text rendering
-    this.ctx.font = '12px monospace';
-    this.ctx.textBaseline = 'top';
-    
-    const lineHeight = 14;
-    let yPos = 10;
-    const leftX = 10;
-    const rightX = this.width - 300;
-    
+    // Get or create debug overlay container
+    let overlay = document.getElementById('debug-overlay');
+    if (!overlay) {
+      overlay = document.createElement('div');
+      overlay.id = 'debug-overlay';
+      overlay.style.cssText = `
+        position: fixed;
+        top: 10px;
+        left: 10px;
+        right: 10px;
+        display: grid;
+        grid-template-columns: 1fr 1fr;
+        gap: 10px;
+        font-family: 'Courier New', monospace;
+        font-size: 12px;
+        color: white;
+        pointer-events: none;
+        z-index: 1000;
+      `;
+      document.body.appendChild(overlay);
+    }
+
     // === LEFT COLUMN ===
-    
-    // Section 1: Performance Stats
-    this.ctx.fillStyle = '#ffff00'; // Yellow for headers
-    this.ctx.fillText('=== PERFORMANCE ===', leftX, yPos);
-    yPos += lineHeight;
-    
-    this.ctx.fillStyle = '#fff';
-    // Use provided FPS if available, otherwise use internal tracking
-    const displayFps = this.currentState.fps !== undefined ? this.currentState.fps.toFixed(1) : this.currentFps;
-    this.ctx.fillText(`FPS: ${displayFps}`, leftX, yPos);
-    yPos += lineHeight;
-    this.ctx.fillText(`Canvas: ${this.width}x${this.height}`, leftX, yPos);
-    yPos += lineHeight * 1.5; // Extra spacing
-    
-    // Section 2: Detected Moves
-    this.ctx.fillStyle = '#ffff00';
-    this.ctx.fillText('=== DETECTED MOVES ===', leftX, yPos);
-    yPos += lineHeight;
-    
-    this.ctx.fillStyle = '#fff';
+    const leftColumn = document.createElement('div');
+    leftColumn.style.cssText = 'display: flex; flex-direction: column; gap: 10px;';
+
+    // Performance section
+    const perfSection = this.createDebugSection('PERFORMANCE', [
+      `FPS: ${this.currentState.fps !== undefined ? this.currentState.fps.toFixed(1) : this.currentFps}`,
+      `Canvas: ${this.width}x${this.height}`
+    ]);
+    leftColumn.appendChild(perfSection);
+
+    // Detected moves section
+    const movesContent: string[] = [];
     if (this.currentState.detectedMoves && this.currentState.detectedMoves.length > 0) {
       for (const move of this.currentState.detectedMoves) {
         const intensity = (move.intensity * 100).toFixed(0);
-        this.ctx.fillText(`${move.type.toUpperCase()}: ${intensity}%`, leftX, yPos);
-        yPos += lineHeight;
+        movesContent.push(`${move.type.toUpperCase()}: ${intensity}%`);
       }
     } else {
-      this.ctx.fillStyle = '#888';
-      this.ctx.fillText('No moves detected', leftX, yPos);
-      yPos += lineHeight;
+      movesContent.push('<span style="color: #888;">No moves detected</span>');
     }
-    yPos += lineHeight * 0.5; // Extra spacing
-    
-    // Section 3: Key Joint Positions
-    this.ctx.fillStyle = '#ffff00';
-    this.ctx.fillText('=== KEY JOINTS ===', leftX, yPos);
-    yPos += lineHeight;
-    
-    if (this.currentState.landmarks) {
-      const joints = [
-        { name: 'Nose', idx: PoseLandmark.NOSE },
-        { name: 'L Shoulder', idx: PoseLandmark.LEFT_SHOULDER },
-        { name: 'R Shoulder', idx: PoseLandmark.RIGHT_SHOULDER },
-        { name: 'L Wrist', idx: PoseLandmark.LEFT_WRIST },
-        { name: 'R Wrist', idx: PoseLandmark.RIGHT_WRIST },
-      ];
-      
-      for (const joint of joints) {
-        if (joint.idx < this.currentState.landmarks.points.length) {
-          const landmark = this.currentState.landmarks.points[joint.idx];
-          const xCoord = landmark.x.toFixed(3);
-          const yCoord = landmark.y.toFixed(3);
-          const zCoord = landmark.z.toFixed(3);
-          const vis = landmark.visibility.toFixed(2);
-          
-          // Color code by visibility
-          if (landmark.visibility >= this.visibilityThreshold) {
-            this.ctx.fillStyle = '#0f0'; // Green for visible
-          } else {
-            this.ctx.fillStyle = '#f00'; // Red for low visibility
-          }
-          
-          this.ctx.fillText(`${joint.name}:`, leftX, yPos);
-          this.ctx.fillText(`  (${xCoord}, ${yCoord}, ${zCoord}) v:${vis}`, leftX, yPos + lineHeight);
-          yPos += lineHeight * 2;
-        }
-      }
-    } else {
-      this.ctx.fillStyle = '#888';
-      this.ctx.fillText('No landmarks available', leftX, yPos);
-      yPos += lineHeight;
-    }
-    
+    const movesSection = this.createDebugSection('DETECTED MOVES', movesContent);
+    leftColumn.appendChild(movesSection);
+
     // === RIGHT COLUMN ===
-    let rightYPos = 10;
-    
-    // Section 4: Stamina
-    this.ctx.fillStyle = '#ffff00';
-    this.ctx.fillText('=== STAMINA ===', rightX, rightYPos);
-    rightYPos += lineHeight;
-    
+    const rightColumn = document.createElement('div');
+    rightColumn.style.cssText = 'display: flex; flex-direction: column; gap: 10px;';
+
+    // Stamina section
     const stamina = this.currentState.debug?.stamina ?? 100;
-    this.ctx.fillStyle = '#fff';
-    this.ctx.fillText(`Stamina: ${stamina.toFixed(0)}`, rightX, rightYPos);
-    rightYPos += lineHeight;
-    
-    // Draw stamina bar
-    const barWidth = 200;
-    const barHeight = 10;
-    this.ctx.strokeStyle = '#fff';
-    this.ctx.strokeRect(rightX, rightYPos, barWidth, barHeight);
-    
-    const staminaPercent = Math.max(0, Math.min(100, stamina)) / 100;
-    this.ctx.fillStyle = staminaPercent > 0.5 ? '#0f0' : staminaPercent > 0.25 ? '#ff0' : '#f00';
-    this.ctx.fillRect(rightX, rightYPos, barWidth * staminaPercent, barHeight);
-    rightYPos += barHeight + lineHeight;
-    
-    // Section 5: Cooldowns
-    this.ctx.fillStyle = '#ffff00';
-    this.ctx.fillText('=== COOLDOWNS (ms) ===', rightX, rightYPos);
-    rightYPos += lineHeight;
-    
+    const staminaPercent = Math.max(0, Math.min(100, stamina));
+    const staminaColor = staminaPercent > 50 ? '#0f0' : staminaPercent > 25 ? '#ff0' : '#f00';
+    const staminaContent = [
+      `Stamina: ${stamina.toFixed(0)}`,
+      `<div style="width: 200px; height: 10px; border: 1px solid white; background: #333; margin-top: 5px;">
+        <div style="width: ${staminaPercent}%; height: 100%; background: ${staminaColor};"></div>
+      </div>`
+    ];
+    const staminaSection = this.createDebugSection('STAMINA', staminaContent);
+    rightColumn.appendChild(staminaSection);
+
+    // Cooldowns section
+    const cooldownsContent: string[] = [];
     if (this.currentState.debug?.cooldowns) {
       const cooldowns = this.currentState.debug.cooldowns;
-      this.ctx.fillStyle = '#fff';
-      
       for (const [moveType, cooldownMs] of Object.entries(cooldowns)) {
         const cooldownValue = cooldownMs as number;
         const displayValue = cooldownValue > 0 ? cooldownValue.toFixed(0) : '0';
-        
-        // Color code: red if on cooldown, green if ready
-        this.ctx.fillStyle = cooldownValue > 0 ? '#f00' : '#0f0';
-        this.ctx.fillText(`${moveType.toUpperCase()}: ${displayValue}`, rightX, rightYPos);
-        rightYPos += lineHeight;
+        const color = cooldownValue > 0 ? '#f00' : '#0f0';
+        cooldownsContent.push(`<span style="color: ${color};">${moveType.toUpperCase()}: ${displayValue} ms</span>`);
       }
     } else {
-      this.ctx.fillStyle = '#888';
-      this.ctx.fillText('No cooldown data', rightX, rightYPos);
-      rightYPos += lineHeight;
+      cooldownsContent.push('<span style="color: #888;">No cooldown data</span>');
     }
-    rightYPos += lineHeight * 0.5;
-    
-    // Section 6: Thresholds
-    this.ctx.fillStyle = '#ffff00';
-    this.ctx.fillText('=== THRESHOLDS ===', rightX, rightYPos);
-    rightYPos += lineHeight;
-    
-    if (this.currentState.debug?.thresholds) {
-      const thresholds = this.currentState.debug.thresholds;
-      this.ctx.fillStyle = '#fff';
-      
-      // Display key thresholds
-      const displayThresholds = [
-        { name: 'Jab', value: thresholds.jabThreshold },
-        { name: 'Power Punch', value: thresholds.powerPunchThreshold },
-        { name: 'Duck', value: thresholds.duckThreshold },
-        { name: 'Block', value: thresholds.blockProximityThreshold },
-        { name: 'Charge Prox', value: thresholds.chargeProximityThreshold },
-        { name: 'Charge Release', value: thresholds.chargeReleaseThreshold },
-        { name: 'Charge Stamina', value: thresholds.chargeStaminaThreshold },
-      ];
-      
-      for (const threshold of displayThresholds) {
-        const value = threshold.value.toFixed(2);
-        this.ctx.fillText(`${threshold.name}: ${value}`, rightX, rightYPos);
-        rightYPos += lineHeight;
-      }
-    } else {
-      this.ctx.fillStyle = '#888';
-      this.ctx.fillText('No threshold data', rightX, rightYPos);
-      rightYPos += lineHeight;
-    }
-    
-    this.ctx.restore();
+    const cooldownsSection = this.createDebugSection('COOLDOWNS', cooldownsContent);
+    rightColumn.appendChild(cooldownsSection);
+
+    // Update overlay
+    overlay.innerHTML = '';
+    overlay.appendChild(leftColumn);
+    overlay.appendChild(rightColumn);
   }
+
+  /**
+   * Helper method to create a debug section with title and content
+   */
+  private createDebugSection(title: string, content: string[]): HTMLDivElement {
+    const section = document.createElement('div');
+    section.style.cssText = `
+      background: rgba(0, 0, 0, 0.8);
+      padding: 8px;
+      border-radius: 4px;
+      border: 1px solid rgba(255, 255, 255, 0.2);
+    `;
+
+    const titleEl = document.createElement('div');
+    titleEl.style.cssText = 'color: #ffff00; font-weight: bold; margin-bottom: 5px;';
+    titleEl.textContent = `=== ${title} ===`;
+    section.appendChild(titleEl);
+
+    const contentEl = document.createElement('div');
+    contentEl.style.cssText = 'color: white; line-height: 1.4;';
+    contentEl.innerHTML = content.join('<br>');
+    section.appendChild(contentEl);
+
+    return section;
+  }
+
   
   /**
    * Enable or disable debug mode
