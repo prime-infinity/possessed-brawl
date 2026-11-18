@@ -159,27 +159,32 @@ export class MoveRecognizer implements IMoveRecognizer {
       return null;
     }
 
-    // Get left wrist position (index 15 from MediaPipe)
+    // Get left wrist and shoulder positions
     const LEFT_WRIST_INDEX = 15;
+    const LEFT_SHOULDER_INDEX = 11;
     const leftWrist = landmarks.points[LEFT_WRIST_INDEX];
+    const leftShoulder = landmarks.points[LEFT_SHOULDER_INDEX];
 
-    // Verify landmark is visible
-    if (!leftWrist || leftWrist.visibility < 0.5) {
+    // Verify landmarks are visible
+    if (!leftWrist || leftWrist.visibility < 0.5 || 
+        !leftShoulder || leftShoulder.visibility < 0.5) {
       return null;
     }
 
-    // Calculate z-axis delta from baseline (forward movement)
-    // In MediaPipe, negative z means closer to camera (forward)
-    // So we look for: baseline.z - current.z > threshold
-    const deltaZ = baseline.leftWristBaseline.z - leftWrist.z;
+    // RELATIVE DETECTION: How far is wrist forward of shoulder?
+    // In MediaPipe, negative z = closer to camera (forward)
+    // So: shoulder.z - wrist.z = positive when wrist is forward
+    const extension = leftShoulder.z - leftWrist.z;
 
-    // Check if delta exceeds threshold
-    if (deltaZ > this.config.jabThreshold) {
+    // Threshold: wrist must be 0.2 units forward of shoulder
+    const JAB_EXTENSION_THRESHOLD = 0.2;
+    
+    if (extension > JAB_EXTENSION_THRESHOLD) {
       // Jab detected! Start cooldown
       this.cooldowns[MoveType.JAB] = this.config.jabCooldown;
 
-      // Calculate intensity based on how far beyond threshold
-      const intensity = Math.min(1.0, deltaZ / (this.config.jabThreshold * 2));
+      // Calculate intensity based on extension distance
+      const intensity = Math.min(1.0, extension / (JAB_EXTENSION_THRESHOLD * 2));
 
       return {
         type: MoveType.JAB,
@@ -204,27 +209,30 @@ export class MoveRecognizer implements IMoveRecognizer {
       return null;
     }
 
-    // Get right wrist position (index 16 from MediaPipe)
+    // Get right wrist and shoulder positions
     const RIGHT_WRIST_INDEX = 16;
+    const RIGHT_SHOULDER_INDEX = 12;
     const rightWrist = landmarks.points[RIGHT_WRIST_INDEX];
+    const rightShoulder = landmarks.points[RIGHT_SHOULDER_INDEX];
 
-    // Verify landmark is visible
-    if (!rightWrist || rightWrist.visibility < 0.5) {
+    // Verify landmarks are visible
+    if (!rightWrist || rightWrist.visibility < 0.5 || 
+        !rightShoulder || rightShoulder.visibility < 0.5) {
       return null;
     }
 
-    // Calculate z-axis delta from baseline (forward movement)
-    // In MediaPipe, negative z means closer to camera (forward)
-    // So we look for: baseline.z - current.z > threshold
-    const deltaZ = baseline.rightWristBaseline.z - rightWrist.z;
+    // RELATIVE DETECTION: How far is wrist forward of shoulder?
+    const extension = rightShoulder.z - rightWrist.z;
 
-    // Check if delta exceeds threshold
-    if (deltaZ > this.config.powerPunchThreshold) {
+    // Threshold: wrist must be 0.25 units forward (power punch needs more extension)
+    const POWER_PUNCH_EXTENSION_THRESHOLD = 0.25;
+    
+    if (extension > POWER_PUNCH_EXTENSION_THRESHOLD) {
       // Power punch detected! Start cooldown
       this.cooldowns[MoveType.POWER_PUNCH] = this.config.powerPunchCooldown;
 
-      // Calculate intensity based on how far beyond threshold
-      const intensity = Math.min(1.0, deltaZ / (this.config.powerPunchThreshold * 2));
+      // Calculate intensity based on extension distance
+      const intensity = Math.min(1.0, extension / (POWER_PUNCH_EXTENSION_THRESHOLD * 2));
 
       return {
         type: MoveType.POWER_PUNCH,
@@ -252,8 +260,8 @@ export class MoveRecognizer implements IMoveRecognizer {
       return null;
     }
 
-    // Get head and shoulder positions (MediaPipe indices)
-    const NOSE_INDEX = 0; // Head reference point
+    // Get head and shoulder positions
+    const NOSE_INDEX = 0;
     const LEFT_SHOULDER_INDEX = 11;
     const RIGHT_SHOULDER_INDEX = 12;
 
@@ -268,39 +276,31 @@ export class MoveRecognizer implements IMoveRecognizer {
       return null;
     }
 
-    // Calculate current head height (y coordinate)
-    const currentHeadY = nose.y;
+    // RELATIVE DETECTION: How much lower is head than shoulders?
+    const avgShoulderY = (leftShoulder.y + rightShoulder.y) / 2;
+    const headY = nose.y;
+    
+    // Y increases downward, so head BELOW shoulders = headY > shoulderY
+    const duckDistance = headY - avgShoulderY;
 
-    // Calculate current shoulder height (average of both shoulders)
-    const currentShoulderY = (leftShoulder.y + rightShoulder.y) / 2;
+    // Threshold: head must be 0.15 units below shoulders
+    const DUCK_THRESHOLD = 0.15;
+    
+    if (duckDistance > DUCK_THRESHOLD) {
+      // Duck detected! Start cooldown
+      this.cooldowns[MoveType.DUCK] = this.config.duckCooldown;
 
-    // Calculate vertical deltas from baseline
-    // In screen coordinates, y increases downward, so drop means higher y value
-    const headDrop = currentHeadY - baseline.headHeight;
-    const shoulderDrop = currentShoulderY - baseline.headHeight; // Using headHeight as shoulder baseline reference
+      // Calculate intensity
+      const intensity = Math.min(1.0, duckDistance / (DUCK_THRESHOLD * 2));
 
-    // Check if drop exceeds threshold
-    if (headDrop < this.config.duckThreshold || shoulderDrop < this.config.duckThreshold) {
-      return null;
+      return {
+        type: MoveType.DUCK,
+        intensity,
+        timestamp: landmarks.timestamp,
+      };
     }
 
-    // Check if drop occurred within time window (speed check)
-    if (!this.isDuckWithinTimeWindow(currentHeadY, currentShoulderY, landmarks.timestamp)) {
-      return null;
-    }
-
-    // Duck detected! Start cooldown
-    this.cooldowns[MoveType.DUCK] = this.config.duckCooldown;
-
-    // Calculate intensity based on drop magnitude
-    const avgDrop = (headDrop + shoulderDrop) / 2;
-    const intensity = Math.min(1.0, avgDrop / (this.config.duckThreshold * 2));
-
-    return {
-      type: MoveType.DUCK,
-      intensity,
-      timestamp: landmarks.timestamp,
-    };
+    return null;
   }
 
   /**

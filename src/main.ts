@@ -543,41 +543,22 @@ export class Application {
       this.baseline,
       this.simulatedStamina
     );
-    // Debug logging for move detection
-    if (detectedMoves.length > 0) {
-      console.log('🎮 MOVES DETECTED:', {
-        moves: detectedMoves.map(m => ({
-          type: m.type,
-          intensity: (m.intensity * 100).toFixed(0) + '%',
-          timestamp: m.timestamp
-        })),
-        cooldowns: this.moveRecognizer.getCooldowns(),
-        stamina: this.simulatedStamina.toFixed(1),
-        fps: this.currentFps.toFixed(1)
-      });
+    // Debug logging - show relative landmark positions
+    if (detectedMoves.length > 0 && this.currentLandmarks) {
+      const move = detectedMoves[0];
+      const intensity = (move.intensity * 100).toFixed(0);
+      console.log(`MOVE: ${move.type} ${intensity}% | Stamina: ${this.simulatedStamina.toFixed(0)} | FPS: ${this.currentFps.toFixed(0)}`);
       
-      // Also log wrist positions for debugging z-axis detection
-      if (this.currentLandmarks && this.baseline) {
-        const leftWrist = this.currentLandmarks.points[15];
-        const rightWrist = this.currentLandmarks.points[16];
-        const leftDeltaZ = this.baseline.leftWristBaseline.z - leftWrist.z;
-        const rightDeltaZ = this.baseline.rightWristBaseline.z - rightWrist.z;
-        
-        console.log('📍 WRIST POSITIONS:', {
-          leftWrist: {
-            current_z: leftWrist.z.toFixed(3),
-            baseline_z: this.baseline.leftWristBaseline.z.toFixed(3),
-            deltaZ: leftDeltaZ.toFixed(3),
-            threshold: '0.150 (jab)'
-          },
-          rightWrist: {
-            current_z: rightWrist.z.toFixed(3),
-            baseline_z: this.baseline.rightWristBaseline.z.toFixed(3),
-            deltaZ: rightDeltaZ.toFixed(3),
-            threshold: '0.200 (power punch)'
-          }
-        });
-      }
+      // Log relative positions (wrist-to-shoulder extension)
+      const leftWrist = this.currentLandmarks.points[15];
+      const rightWrist = this.currentLandmarks.points[16];
+      const leftShoulder = this.currentLandmarks.points[11];
+      const rightShoulder = this.currentLandmarks.points[12];
+      
+      const leftExt = (leftShoulder.z - leftWrist.z).toFixed(3);
+      const rightExt = (rightShoulder.z - rightWrist.z).toFixed(3);
+      
+      console.log(`  L_ext: ${leftExt} (0.200) | R_ext: ${rightExt} (0.250)`);
     }
     
     // Update simulated stamina for Stage 1 testing
