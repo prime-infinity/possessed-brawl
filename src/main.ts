@@ -543,6 +543,42 @@ export class Application {
       this.baseline,
       this.simulatedStamina
     );
+    // Debug logging for move detection
+    if (detectedMoves.length > 0) {
+      console.log('🎮 MOVES DETECTED:', {
+        moves: detectedMoves.map(m => ({
+          type: m.type,
+          intensity: (m.intensity * 100).toFixed(0) + '%',
+          timestamp: m.timestamp
+        })),
+        cooldowns: this.moveRecognizer.getCooldowns(),
+        stamina: this.simulatedStamina.toFixed(1),
+        fps: this.currentFps.toFixed(1)
+      });
+      
+      // Also log wrist positions for debugging z-axis detection
+      if (this.currentLandmarks && this.baseline) {
+        const leftWrist = this.currentLandmarks.points[15];
+        const rightWrist = this.currentLandmarks.points[16];
+        const leftDeltaZ = this.baseline.leftWristBaseline.z - leftWrist.z;
+        const rightDeltaZ = this.baseline.rightWristBaseline.z - rightWrist.z;
+        
+        console.log('📍 WRIST POSITIONS:', {
+          leftWrist: {
+            current_z: leftWrist.z.toFixed(3),
+            baseline_z: this.baseline.leftWristBaseline.z.toFixed(3),
+            deltaZ: leftDeltaZ.toFixed(3),
+            threshold: '0.150 (jab)'
+          },
+          rightWrist: {
+            current_z: rightWrist.z.toFixed(3),
+            baseline_z: this.baseline.rightWristBaseline.z.toFixed(3),
+            deltaZ: rightDeltaZ.toFixed(3),
+            threshold: '0.200 (power punch)'
+          }
+        });
+      }
+    }
     
     // Update simulated stamina for Stage 1 testing
     this.updateSimulatedStamina(detectedMoves, deltaTime);
