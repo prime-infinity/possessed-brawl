@@ -543,22 +543,11 @@ export class Application {
       this.baseline,
       this.simulatedStamina
     );
-    // Debug logging - show relative landmark positions
+    // Debug logging - show velocity
     if (detectedMoves.length > 0 && this.currentLandmarks) {
       const move = detectedMoves[0];
       const intensity = (move.intensity * 100).toFixed(0);
       console.log(`MOVE: ${move.type} ${intensity}% | Stamina: ${this.simulatedStamina.toFixed(0)} | FPS: ${this.currentFps.toFixed(0)}`);
-      
-      // Log relative positions (wrist-to-shoulder extension)
-      const leftWrist = this.currentLandmarks.points[15];
-      const rightWrist = this.currentLandmarks.points[16];
-      const leftShoulder = this.currentLandmarks.points[11];
-      const rightShoulder = this.currentLandmarks.points[12];
-      
-      const leftExt = (leftShoulder.z - leftWrist.z).toFixed(3);
-      const rightExt = (rightShoulder.z - rightWrist.z).toFixed(3);
-      
-      console.log(`  L_ext: ${leftExt} (0.200) | R_ext: ${rightExt} (0.250)`);
     }
     
     // Update simulated stamina for Stage 1 testing

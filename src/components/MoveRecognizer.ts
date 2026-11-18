@@ -57,6 +57,11 @@ export class MoveRecognizer implements IMoveRecognizer {
   private positionHistory: PositionHistoryEntry[];
   private chargeState: ChargeState;
 
+  // Velocity-based detection: track previous extensions and timestamps
+  private previousLeftExtension: number | null = null;
+  private previousRightExtension: number | null = null;
+  private previousTimestamp: number | null = null;
+
   constructor(config: Partial<ThresholdConfig> = {}) {
     // Initialize with default config, overridden by provided config
     this.config = {
@@ -171,27 +176,46 @@ export class MoveRecognizer implements IMoveRecognizer {
       return null;
     }
 
-    // RELATIVE DETECTION: How far is wrist forward of shoulder?
-    // In MediaPipe, negative z = closer to camera (forward)
-    // So: shoulder.z - wrist.z = positive when wrist is forward
-    const extension = leftShoulder.z - leftWrist.z;
+    // Calculate current extension (wrist forward of shoulder)
+    const currentExtension = leftShoulder.z - leftWrist.z;
 
-    // Threshold: wrist must be 0.2 units forward of shoulder
-    const JAB_EXTENSION_THRESHOLD = 0.2;
-    
-    if (extension > JAB_EXTENSION_THRESHOLD) {
-      // Jab detected! Start cooldown
-      this.cooldowns[MoveType.JAB] = this.config.jabCooldown;
+    // VELOCITY DETECTION: Check if extension is INCREASING rapidly
+    if (this.previousLeftExtension !== null && this.previousTimestamp !== null) {
+      const deltaTime = (landmarks.timestamp - this.previousTimestamp) / 1000; // seconds
+      
+      if (deltaTime > 0) {
+        // How much did extension increase?
+        const deltaExtension = currentExtension - this.previousLeftExtension;
+        
+        // Velocity = change in extension per second
+        const velocity = deltaExtension / deltaTime;
+        
+        // Must be extending forward rapidly (threshold: 0.5 units/sec increase)
+        const JAB_VELOCITY_THRESHOLD = 0.5;
+        
+        if (velocity > JAB_VELOCITY_THRESHOLD) {
+          // Jab detected! Start cooldown
+          this.cooldowns[MoveType.JAB] = this.config.jabCooldown;
+          
+          // Update tracking
+          this.previousLeftExtension = currentExtension;
+          this.previousTimestamp = landmarks.timestamp;
 
-      // Calculate intensity based on extension distance
-      const intensity = Math.min(1.0, extension / (JAB_EXTENSION_THRESHOLD * 2));
+          // Calculate intensity based on velocity
+          const intensity = Math.min(1.0, velocity / (JAB_VELOCITY_THRESHOLD * 2));
 
-      return {
-        type: MoveType.JAB,
-        intensity,
-        timestamp: landmarks.timestamp,
-      };
+          return {
+            type: MoveType.JAB,
+            intensity,
+            timestamp: landmarks.timestamp,
+          };
+        }
+      }
     }
+    
+    // Update tracking for next frame
+    this.previousLeftExtension = currentExtension;
+    this.previousTimestamp = landmarks.timestamp;
 
     return null;
   }
@@ -221,25 +245,42 @@ export class MoveRecognizer implements IMoveRecognizer {
       return null;
     }
 
-    // RELATIVE DETECTION: How far is wrist forward of shoulder?
-    const extension = rightShoulder.z - rightWrist.z;
+    // Calculate current extension
+    const currentExtension = rightShoulder.z - rightWrist.z;
 
-    // Threshold: wrist must be 0.25 units forward (power punch needs more extension)
-    const POWER_PUNCH_EXTENSION_THRESHOLD = 0.25;
-    
-    if (extension > POWER_PUNCH_EXTENSION_THRESHOLD) {
-      // Power punch detected! Start cooldown
-      this.cooldowns[MoveType.POWER_PUNCH] = this.config.powerPunchCooldown;
+    // VELOCITY DETECTION: Check if extension is INCREASING rapidly
+    if (this.previousRightExtension !== null && this.previousTimestamp !== null) {
+      const deltaTime = (landmarks.timestamp - this.previousTimestamp) / 1000;
+      
+      if (deltaTime > 0) {
+        const deltaExtension = currentExtension - this.previousRightExtension;
+        const velocity = deltaExtension / deltaTime;
+        
+        // Power punch needs more force (0.7 units/sec)
+        const POWER_VELOCITY_THRESHOLD = 0.7;
+        
+        if (velocity > POWER_VELOCITY_THRESHOLD) {
+          // Power punch detected!
+          this.cooldowns[MoveType.POWER_PUNCH] = this.config.powerPunchCooldown;
+          
+          // Update tracking
+          this.previousRightExtension = currentExtension;
+          this.previousTimestamp = landmarks.timestamp;
 
-      // Calculate intensity based on extension distance
-      const intensity = Math.min(1.0, extension / (POWER_PUNCH_EXTENSION_THRESHOLD * 2));
+          const intensity = Math.min(1.0, velocity / (POWER_VELOCITY_THRESHOLD * 2));
 
-      return {
-        type: MoveType.POWER_PUNCH,
-        intensity,
-        timestamp: landmarks.timestamp,
-      };
+          return {
+            type: MoveType.POWER_PUNCH,
+            intensity,
+            timestamp: landmarks.timestamp,
+          };
+        }
+      }
     }
+    
+    // Update tracking
+    this.previousRightExtension = currentExtension;
+    this.previousTimestamp = landmarks.timestamp;
 
     return null;
   }
