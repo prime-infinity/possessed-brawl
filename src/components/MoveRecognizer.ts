@@ -62,6 +62,11 @@ export class MoveRecognizer implements IMoveRecognizer {
   private previousRightExtension: number | null = null;
   private previousTimestamp: number | null = null;
 
+  // Multi-frame confirmation: track consecutive high-angle frames
+  private leftPunchFrameCount: number = 0;
+  private rightPunchFrameCount: number = 0;
+  private readonly CONFIRMATION_FRAMES = 3; // Must detect for 3 frames in a row
+
   constructor(config: Partial<ThresholdConfig> = {}) {
     // Initialize with default config, overridden by provided config
     this.config = {
@@ -164,137 +169,115 @@ export class MoveRecognizer implements IMoveRecognizer {
       return null;
     }
 
-    // Get left wrist and shoulder positions
-    const LEFT_WRIST_INDEX = 15;
+    // Get left arm landmarks: shoulder, elbow, wrist
     const LEFT_SHOULDER_INDEX = 11;
-    const leftWrist = landmarks.points[LEFT_WRIST_INDEX];
-    const leftShoulder = landmarks.points[LEFT_SHOULDER_INDEX];
+    const LEFT_ELBOW_INDEX = 13;
+    const LEFT_WRIST_INDEX = 15;
+    
+    const shoulder = landmarks.points[LEFT_SHOULDER_INDEX];
+    const elbow = landmarks.points[LEFT_ELBOW_INDEX];
+    const wrist = landmarks.points[LEFT_WRIST_INDEX];
 
     // Verify landmarks are visible
-    if (!leftWrist || leftWrist.visibility < 0.5 || 
-        !leftShoulder || leftShoulder.visibility < 0.5) {
+    if (!shoulder || shoulder.visibility < 0.5 || 
+        !elbow || elbow.visibility < 0.5 ||
+        !wrist || wrist.visibility < 0.5) {
+      this.leftPunchFrameCount = 0;
       return null;
     }
 
-    // Calculate current extension (wrist forward of shoulder)
-    const currentExtension = leftShoulder.z - leftWrist.z;
+    // Calculate elbow angle using X,Y coordinates only (no Z!)
+    const angle = this.calculateAngle(
+      shoulder.x, shoulder.y,
+      elbow.x, elbow.y,
+      wrist.x, wrist.y
+    );
 
-    // VELOCITY DETECTION: Check if extension is INCREASING rapidly
-    if (this.previousLeftExtension !== null && this.previousTimestamp !== null) {
-      const deltaTime = (landmarks.timestamp - this.previousTimestamp) / 1000; // seconds
-      
-      if (deltaTime > 0) {
-        // How much did extension increase?
-        const deltaExtension = currentExtension - this.previousLeftExtension;
-        
-        // Velocity = change in extension per second
-        const velocity = deltaExtension / deltaTime;
-        
-        // Must be extending forward rapidly (threshold: 0.5 units/sec increase)
-        const JAB_VELOCITY_THRESHOLD = 0.5;
-        
-        if (velocity > JAB_VELOCITY_THRESHOLD) {
-          // Jab detected! Start cooldown
-          this.cooldowns[MoveType.JAB] = this.config.jabCooldown;
-          
-          // Update tracking
-          this.previousLeftExtension = currentExtension;
-          this.previousTimestamp = landmarks.timestamp;
-
-          // Calculate intensity based on velocity
-          const intensity = Math.min(1.0, velocity / (JAB_VELOCITY_THRESHOLD * 2));
-
-          return {
-            type: MoveType.JAB,
-            intensity,
-            timestamp: landmarks.timestamp,
-          };
-        }
-      }
-    }
+    // Punch = arm straightens (angle > 150 degrees)
+    const PUNCH_ANGLE_THRESHOLD = 150;
     
-    // Update tracking for next frame
-    this.previousLeftExtension = currentExtension;
-    this.previousTimestamp = landmarks.timestamp;
+    if (angle > PUNCH_ANGLE_THRESHOLD) {
+      // Increment confirmation counter
+      this.leftPunchFrameCount++;
+      
+      // Require CONFIRMATION_FRAMES consecutive frames
+      if (this.leftPunchFrameCount >= this.CONFIRMATION_FRAMES) {
+        // Jab confirmed! Start cooldown and reset counter
+        this.cooldowns[MoveType.JAB] = this.config.jabCooldown;
+        this.leftPunchFrameCount = 0;
+
+        // Calculate intensity based on how straight the arm is
+        const intensity = Math.min(1.0, (angle - PUNCH_ANGLE_THRESHOLD) / 30);
+
+        return {
+          type: MoveType.JAB,
+          intensity,
+          timestamp: landmarks.timestamp,
+        };
+      }
+    } else {
+      // Angle dropped below threshold, reset counter
+      this.leftPunchFrameCount = 0;
+    }
 
     return null;
   }
-
-  /**
-   * Detect power punch move (right wrist forward movement)
-   * 
-   * @param landmarks - Current pose landmarks
-   * @param baseline - Calibrated baseline pose data
-   * @returns DetectedMove if power punch detected, null otherwise
-   */
   private detectPowerPunch(landmarks: Landmarks, baseline: BaselineData): DetectedMove | null {
     // Check if power punch is on cooldown
     if (this.cooldowns[MoveType.POWER_PUNCH] > 0) {
       return null;
     }
 
-    // Get right wrist and shoulder positions
-    const RIGHT_WRIST_INDEX = 16;
+    // Get right arm landmarks: shoulder, elbow, wrist
     const RIGHT_SHOULDER_INDEX = 12;
-    const rightWrist = landmarks.points[RIGHT_WRIST_INDEX];
-    const rightShoulder = landmarks.points[RIGHT_SHOULDER_INDEX];
+    const RIGHT_ELBOW_INDEX = 14;
+    const RIGHT_WRIST_INDEX = 16;
+    
+    const shoulder = landmarks.points[RIGHT_SHOULDER_INDEX];
+    const elbow = landmarks.points[RIGHT_ELBOW_INDEX];
+    const wrist = landmarks.points[RIGHT_WRIST_INDEX];
 
     // Verify landmarks are visible
-    if (!rightWrist || rightWrist.visibility < 0.5 || 
-        !rightShoulder || rightShoulder.visibility < 0.5) {
+    if (!shoulder || shoulder.visibility < 0.5 || 
+        !elbow || elbow.visibility < 0.5 ||
+        !wrist || wrist.visibility < 0.5) {
+      this.rightPunchFrameCount = 0;
       return null;
     }
 
-    // Calculate current extension
-    const currentExtension = rightShoulder.z - rightWrist.z;
+    // Calculate elbow angle using X,Y only
+    const angle = this.calculateAngle(
+      shoulder.x, shoulder.y,
+      elbow.x, elbow.y,
+      wrist.x, wrist.y
+    );
 
-    // VELOCITY DETECTION: Check if extension is INCREASING rapidly
-    if (this.previousRightExtension !== null && this.previousTimestamp !== null) {
-      const deltaTime = (landmarks.timestamp - this.previousTimestamp) / 1000;
-      
-      if (deltaTime > 0) {
-        const deltaExtension = currentExtension - this.previousRightExtension;
-        const velocity = deltaExtension / deltaTime;
-        
-        // Power punch needs more force (0.7 units/sec)
-        const POWER_VELOCITY_THRESHOLD = 0.7;
-        
-        if (velocity > POWER_VELOCITY_THRESHOLD) {
-          // Power punch detected!
-          this.cooldowns[MoveType.POWER_PUNCH] = this.config.powerPunchCooldown;
-          
-          // Update tracking
-          this.previousRightExtension = currentExtension;
-          this.previousTimestamp = landmarks.timestamp;
-
-          const intensity = Math.min(1.0, velocity / (POWER_VELOCITY_THRESHOLD * 2));
-
-          return {
-            type: MoveType.POWER_PUNCH,
-            intensity,
-            timestamp: landmarks.timestamp,
-          };
-        }
-      }
-    }
+    // Power punch needs more extension (160 degrees)
+    const POWER_ANGLE_THRESHOLD = 160;
     
-    // Update tracking
-    this.previousRightExtension = currentExtension;
-    this.previousTimestamp = landmarks.timestamp;
+    if (angle > POWER_ANGLE_THRESHOLD) {
+      this.rightPunchFrameCount++;
+      
+      if (this.rightPunchFrameCount >= this.CONFIRMATION_FRAMES) {
+        // Power punch confirmed!
+        this.cooldowns[MoveType.POWER_PUNCH] = this.config.powerPunchCooldown;
+        this.rightPunchFrameCount = 0;
+
+        const intensity = Math.min(1.0, (angle - POWER_ANGLE_THRESHOLD) / 20);
+
+        return {
+          type: MoveType.POWER_PUNCH,
+          intensity,
+          timestamp: landmarks.timestamp,
+        };
+      }
+    } else {
+      this.rightPunchFrameCount = 0;
+    }
 
     return null;
   }
 
-  /**
-   * Detect duck move (head and shoulders drop)
-   * 
-   * Requires head and shoulders to drop below threshold within time window.
-   * This ensures the drop is fast enough to be a duck (speed check).
-   * 
-   * @param landmarks - Current pose landmarks
-   * @param baseline - Calibrated baseline pose data
-   * @returns DetectedMove if duck detected, null otherwise
-   */
   private detectDuck(landmarks: Landmarks, baseline: BaselineData): DetectedMove | null {
     // Check if duck is on cooldown
     if (this.cooldowns[MoveType.DUCK] > 0) {
@@ -559,6 +542,53 @@ export class MoveRecognizer implements IMoveRecognizer {
    * 
    * Decreases all active cooldown timers by deltaTime.
    * Called each frame with frame time delta.
+   * 
+   * @param deltaTime - Time elapsed since last update (milliseconds)
+   */
+  /**
+   * Calculate angle between three points (in degrees)
+   * Uses only X,Y coordinates for stability
+   * 
+   * @param x1, y1 - First point (e.g., shoulder)
+   * @param x2, y2 - Middle point (e.g., elbow)
+   * @param x3, y3 - End point (e.g., wrist)
+   * @returns Angle in degrees (0-180)
+   */
+  private calculateAngle(
+    x1: number, y1: number,
+    x2: number, y2: number,
+    x3: number, y3: number
+  ): number {
+    // Vector from elbow to shoulder
+    const v1x = x1 - x2;
+    const v1y = y1 - y2;
+    
+    // Vector from elbow to wrist
+    const v2x = x3 - x2;
+    const v2y = y3 - y2;
+    
+    // Dot product
+    const dot = v1x * v2x + v1y * v2y;
+    
+    // Magnitudes
+    const mag1 = Math.sqrt(v1x * v1x + v1y * v1y);
+    const mag2 = Math.sqrt(v2x * v2x + v2y * v2y);
+    
+    // Avoid division by zero
+    if (mag1 === 0 || mag2 === 0) {
+      return 0;
+    }
+    
+    // Calculate angle in radians, then convert to degrees
+    const cosAngle = dot / (mag1 * mag2);
+    const angleRad = Math.acos(Math.max(-1, Math.min(1, cosAngle))); // Clamp to [-1, 1]
+    const angleDeg = angleRad * (180 / Math.PI);
+    
+    return angleDeg;
+  }
+
+  /**
+   * Update cooldown timers
    * 
    * @param deltaTime - Time elapsed since last update (milliseconds)
    */
