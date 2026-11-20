@@ -62,7 +62,7 @@ const DEFAULT_CONFIG: CalibrationUIConfig = {
 export class CalibrationUI {
   private config: CalibrationUIConfig;
   private ctx: CanvasRenderingContext2D;
-  private isGuardDetected: boolean = false;
+  private isReadyStanceDetected: boolean = false;
   
   constructor(config: Partial<CalibrationUIConfig> & { canvas: HTMLCanvasElement }) {
     this.config = { ...DEFAULT_CONFIG, ...config };
@@ -75,14 +75,21 @@ export class CalibrationUI {
   }
 
   /**
-   * Update guard detection status for real-time feedback
+   * Update ready stance detection status for real-time feedback
    * 
    * **Validates: Requirement 2.3** - display real-time confirmation
    * 
-   * @param isDetected - Whether guard position is currently detected
+   * @param isDetected - Whether ready stance is currently detected
    */
   setGuardDetected(isDetected: boolean): void {
-    this.isGuardDetected = isDetected;
+    this.isReadyStanceDetected = isDetected;
+  }
+  
+  /**
+   * Alias for backward compatibility
+   */
+  setReadyStanceDetected(isDetected: boolean): void {
+    this.setGuardDetected(isDetected);
   }
 
   /**
@@ -101,7 +108,7 @@ export class CalibrationUI {
     ctx.clearRect(0, 0, canvas.width, canvas.height);
 
     // Clear overlay for non-waiting/recording states
-    if (state !== CalibrationState.WAITING_FOR_GUARD && 
+    if (state !== CalibrationState.WAITING_FOR_READY_STANCE && 
         state !== CalibrationState.RECORDING && 
         state !== CalibrationState.COMPLETED) {
       this.removeTextOverlay();
@@ -109,10 +116,11 @@ export class CalibrationUI {
     
     switch (state) {
       case CalibrationState.NOT_STARTED:
+      case CalibrationState.SELECTING_WAND_HAND:
         this.renderNotStartedScreen();
         break;
         
-      case CalibrationState.WAITING_FOR_GUARD:
+      case CalibrationState.WAITING_FOR_READY_STANCE:
         this.renderWaitingScreen();
         break;
         
@@ -190,7 +198,7 @@ export class CalibrationUI {
 
 
   /**
-   * Render waiting for guard position screen
+   * Render waiting for ready stance screen
    * 
    * **Validates: Requirement 2.1** - display text prompt and stick-figure diagram
    */
@@ -199,13 +207,13 @@ export class CalibrationUI {
     const ctx = this.ctx;
     
     // Use HTML overlay for crisp text
-    this.updateTextOverlay('Assume Guard Position', 'Hands up near face, elbows tucked close to body');
+    this.updateTextOverlay('Assume Ready Stance', 'Raise your off-hand to shoulder height, keep wand hand relaxed');
 
     // Draw stick figure demonstration
-    this.drawGuardPositionDiagram();
+    this.drawReadyStanceDiagram();
 
-    // Draw real-time confirmation if guard position detected
-    if (this.isGuardDetected) {
+    // Draw real-time confirmation if ready stance detected
+    if (this.isReadyStanceDetected) {
       this.drawConfirmation();
     }
   }
@@ -271,11 +279,11 @@ export class CalibrationUI {
   }
 
   /**
-   * Draw stick figure demonstrating guard position
+   * Draw stick figure demonstrating ready stance
    * 
    * **Validates: Requirement 2.1** - show stick-figure diagram
    */
-  private drawGuardPositionDiagram(): void {
+  private drawReadyStanceDiagram(): void {
     const canvas = this.config.canvas;
     const ctx = this.ctx;
     
@@ -365,7 +373,7 @@ export class CalibrationUI {
   }
 
   /**
-   * Draw confirmation indicator when guard position detected
+   * Draw confirmation indicator when ready stance detected
    * 
    * **Validates: Requirement 2.3** - display real-time confirmation
    */
@@ -380,7 +388,7 @@ export class CalibrationUI {
     ctx.textBaseline = 'top';
     
     ctx.fillText(
-      '✓ Guard Position Detected',
+      '✓ Ready Stance Detected',
       canvas.width / 2,
       canvas.height - 100
     );

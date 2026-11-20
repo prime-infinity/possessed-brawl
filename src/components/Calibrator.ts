@@ -1,13 +1,13 @@
 /**
- * Calibrator Component
+ * Calibrator Component for Spell Duel
  * 
- * Responsible for detecting guard position, recording baseline pose measurements
- * during calibration period, and providing quality checks and retry logic.
+ * Responsible for wand hand selection, detecting ready stance, recording baseline 
+ * pose measurements during calibration period, and providing quality checks and retry logic.
  * 
- * **Validates: Requirements 2.1, 2.2, 2.3, 2.4, 2.5, 2.6, 2.7**
+ * **Validates: Requirements 2.1, 2.2, 2.3, 2.4, 2.5, 2.6, 2.7, 2.8, 2.9**
  */
 
-import { Landmark, Landmarks, BaselineData } from '../types';
+import { Landmark, Landmarks, BaselineData, WandHand } from '../types';
 import { PoseLandmark } from '../types/pose';
 
 /**
@@ -15,7 +15,8 @@ import { PoseLandmark } from '../types/pose';
  */
 export enum CalibrationState {
   NOT_STARTED = 'not_started',
-  WAITING_FOR_GUARD = 'waiting_for_guard',
+  SELECTING_WAND_HAND = 'selecting_wand_hand',
+  WAITING_FOR_READY_STANCE = 'waiting_for_ready_stance',
   RECORDING = 'recording',
   COMPLETED = 'completed',
   FAILED = 'failed'
@@ -26,11 +27,12 @@ export enum CalibrationState {
  */
 export interface CalibratorConfig {
   /**
-   * Distance threshold for guard position detection (normalized units)
-   * Both wrists must be within this distance of the head
+   * Distance threshold for ready stance detection (normalized units)
+   * Off-hand wrist must be within this distance of the head (raised)
+   * Wand hand should be relaxed (not near head)
    * @default 0.2
    */
-  guardProximityThreshold: number;
+  readyStanceProximityThreshold: number;
   
   /**
    * Maximum vertical difference between shoulders (normalized units)
@@ -62,7 +64,7 @@ export interface CalibratorConfig {
  * Default configuration for Calibrator
  */
 const DEFAULT_CONFIG: CalibratorConfig = {
-  guardProximityThreshold: 0.2,
+  readyStanceProximityThreshold: 0.2,
   shoulderLevelThreshold: 0.05,
   minFrameCount: 20,
   targetFrameCount: 30,
@@ -80,13 +82,14 @@ interface CalibrationFrame {
 /**
  * Calibrator implementation
  * 
- * **Validates: Requirements 2.1, 2.2, 2.3, 2.4, 2.5, 2.6, 2.7**
+ * **Validates: Requirements 2.1, 2.2, 2.3, 2.4, 2.5, 2.6, 2.7, 2.8, 2.9**
  */
 export class Calibrator {
   private config: CalibratorConfig;
   private state: CalibrationState = CalibrationState.NOT_STARTED;
   private frameBuffer: CalibrationFrame[] = [];
   private baseline: BaselineData | null = null;
+  private selectedWandHand: WandHand = WandHand.RIGHT; // Default to right hand
   
   constructor(config: Partial<CalibratorConfig> = {}) {
     this.config = { ...DEFAULT_CONFIG, ...config };
@@ -146,19 +149,39 @@ export class Calibrator {
   }
 
   /**
-   * Check if landmarks represent guard position
+   * Select wand hand (left or right)
    * 
-   * Guard position requires:
-   * - Both wrists within threshold distance of head (nose)
+   * **Validates: Requirement 2.1** - wand hand selection
+   * 
+   * @param wandHand - The selected wand hand
+   */
+  selectWandHand(wandHand: WandHand): void {
+    this.selectedWandHand = wandHand;
+    console.log(`Wand hand selected: ${wandHand}`);
+  }
+
+  /**
+   * Get currently selected wand hand
+   */
+  getWandHand(): WandHand {
+    return this.selectedWandHand;
+  }
+
+  /**
+   * Check if landmarks represent ready stance for spell casting
+   * 
+   * Ready stance requires:
+   * - Off-hand wrist raised near head (shoulder height or above)
+   * - Wand hand relaxed (not near head)
    * - Shoulders are level (vertical difference < threshold)
    * - Head is upright (nose is visible)
    * 
-   * **Validates: Requirement 2.2** - detect when player is in guard position
+   * **Validates: Requirements 2.2, 2.3, 2.4** - detect when player is in ready stance
    * 
    * @param landmarks - The current pose landmarks
-   * @returns true if in guard position, false otherwise
+   * @returns true if in ready stance, false otherwise
    */
-  isInGuardPosition(landmarks: Landmarks): boolean {
+  isInReadyStance(landmarks: Landmarks): boolean {
     const points = landmarks.points;
     
     // Check if we have enough landmarks
@@ -187,48 +210,62 @@ export class Calibrator {
       return false;
     }
 
-    // Check if both wrists are near the head (guard position)
-    const leftWristDistance = this.euclideanDistance2D(leftWrist, nose);
-    const rightWristDistance = this.euclideanDistance2D(rightWrist, nose);
+    // Determine off-hand and wand hand based on selection
+    const offHandWrist = this.selectedWandHand === WandHand.RIGHT ? leftWrist : rightWrist;
+    const wandHandWrist = this.selectedWandHand === WandHand.RIGHT ? rightWrist : leftWrist;
 
-    const inGuardPosition = 
-      leftWristDistance < this.config.guardProximityThreshold &&
-      rightWristDistance < this.config.guardProximityThreshold;
+    // Check if off-hand is raised near head
+    const offHandDistance = this.euclideanDistance2D(offHandWrist, nose);
+    const offHandRaised = offHandDistance < this.config.readyStanceProximityThreshold;
 
-    return inGuardPosition;
+    // Check if wand hand is relaxed (NOT near head)
+    const wandHandDistance = this.euclideanDistance2D(wandHandWrist, nose);
+    const wandHandRelaxed = wandHandDistance > this.config.readyStanceProximityThreshold;
+
+    const inReadyStance = offHandRaised && wandHandRelaxed;
+
+    return inReadyStance;
+  }
+  
+  /**
+   * Legacy method for backward compatibility
+   * Alias for isInReadyStance
+   */
+  isInGuardPosition(landmarks: Landmarks): boolean {
+    return this.isInReadyStance(landmarks);
   }
 
   /**
    * Start calibration process
    * 
-   * Resets frame buffer and begins waiting for guard position.
+   * Resets frame buffer and begins waiting for ready stance.
    * 
    * **Validates: Requirement 2.1** - begin calibration flow
    */
   startCalibration(): void {
-    this.state = CalibrationState.WAITING_FOR_GUARD;
+    this.state = CalibrationState.WAITING_FOR_READY_STANCE;
     this.frameBuffer = [];
     this.baseline = null;
-    console.log('Calibration started - waiting for guard position');
+    console.log(`Calibration started - waiting for ready stance (wand hand: ${this.selectedWandHand})`);
   }
 
   /**
    * Record a frame of baseline data
    * 
-   * Only records frames when in guard position during recording state.
+   * Only records frames when in ready stance during recording state.
    * Automatically handles quality checks and frame filtering.
    * 
-   * **Validates: Requirements 2.4, 2.5, 2.6, 2.7** - record baseline measurements
+   * **Validates: Requirements 2.4, 2.5, 2.6, 2.7, 2.8** - record baseline measurements
    * 
    * @param landmarks - The current pose landmarks
    * @returns true if frame was recorded, false otherwise
    */
   recordFrame(landmarks: Landmarks): boolean {
-    // If waiting for guard position, check if we can start recording
-    if (this.state === CalibrationState.WAITING_FOR_GUARD) {
-      if (this.isInGuardPosition(landmarks)) {
+    // If waiting for ready stance, check if we can start recording
+    if (this.state === CalibrationState.WAITING_FOR_READY_STANCE) {
+      if (this.isInReadyStance(landmarks)) {
         this.state = CalibrationState.RECORDING;
-        console.log('Guard position detected - starting recording');
+        console.log('Ready stance detected - starting recording');
       } else {
         // Still waiting
         return false;
@@ -240,9 +277,9 @@ export class Calibrator {
       return false;
     }
 
-    // Check if still in guard position
-    if (!this.isInGuardPosition(landmarks)) {
-      console.warn('Lost guard position during calibration');
+    // Check if still in ready stance
+    if (!this.isInReadyStance(landmarks)) {
+      console.warn('Lost ready stance during calibration');
       // Don't fail immediately - just skip this frame
       this.frameBuffer.push({
         landmarks,
@@ -309,12 +346,14 @@ export class Calibrator {
    * Finish calibration and compute baseline
    * 
    * Calculates mean values across buffered frames for:
+   * - Wand hand selection
    * - Center position (average of shoulders)
    * - Shoulder width (distance between shoulders)
    * - Head height (vertical position)
-   * - Wrist baselines (mean wrist positions in guard stance)
+   * - Wand wrist baseline (mean wand hand wrist position)
+   * - Off-hand wrist baseline (mean off-hand wrist position)
    * 
-   * **Validates: Requirements 2.4, 2.5, 2.6, 2.7** - compute baseline measurements
+   * **Validates: Requirements 2.4, 2.5, 2.6, 2.7, 2.8, 2.9** - compute baseline measurements
    * 
    * @returns BaselineData or null if insufficient frames
    */
@@ -370,23 +409,26 @@ export class Calibrator {
 
     // Calculate means
     const frameCount = goodFrames.length;
+    
+    // Assign wand/off-hand wrists based on selected wand hand
+    const wandWristBaseline = this.selectedWandHand === WandHand.RIGHT 
+      ? { x: rightWristX / frameCount, y: rightWristY / frameCount, z: rightWristZ / frameCount }
+      : { x: leftWristX / frameCount, y: leftWristY / frameCount, z: leftWristZ / frameCount };
+    
+    const offHandWristBaseline = this.selectedWandHand === WandHand.RIGHT 
+      ? { x: leftWristX / frameCount, y: leftWristY / frameCount, z: leftWristZ / frameCount }
+      : { x: rightWristX / frameCount, y: rightWristY / frameCount, z: rightWristZ / frameCount };
+
     this.baseline = {
+      wandHand: this.selectedWandHand,
       centerPosition: {
         x: centerX / frameCount,
         y: centerY / frameCount
       },
       shoulderWidth: shoulderWidth / frameCount,
       headHeight: headHeight / frameCount,
-      leftWristBaseline: {
-        x: leftWristX / frameCount,
-        y: leftWristY / frameCount,
-        z: leftWristZ / frameCount
-      },
-      rightWristBaseline: {
-        x: rightWristX / frameCount,
-        y: rightWristY / frameCount,
-        z: rightWristZ / frameCount
-      }
+      wandWristBaseline,
+      offHandWristBaseline
     };
 
     this.state = CalibrationState.COMPLETED;

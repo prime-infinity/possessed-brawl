@@ -428,41 +428,41 @@ export class Renderer {
     this.ctx.stroke();
     
     // 3. Draw baseline wrist positions (circles with labels)
-    const leftWristPixel = this.normalizedToPixels(
-      baseline.leftWristBaseline.x,
-      baseline.leftWristBaseline.y
+    const wandWristPixel = this.normalizedToPixels(
+      baseline.wandWristBaseline.x,
+      baseline.wandWristBaseline.y
     );
-    const rightWristPixel = this.normalizedToPixels(
-      baseline.rightWristBaseline.x,
-      baseline.rightWristBaseline.y
+    const offHandWristPixel = this.normalizedToPixels(
+      baseline.offHandWristBaseline.x,
+      baseline.offHandWristBaseline.y
     );
     
-    // Left wrist marker
+    // Wand hand wrist marker
     this.ctx.fillStyle = baselineColor;
     this.ctx.globalAlpha = 0.5;
     this.ctx.beginPath();
-    this.ctx.arc(leftWristPixel.x, leftWristPixel.y, markerRadius, 0, 2 * Math.PI);
+    this.ctx.arc(wandWristPixel.x, wandWristPixel.y, markerRadius, 0, 2 * Math.PI);
     this.ctx.fill();
     
     this.ctx.globalAlpha = 1.0;
     this.ctx.strokeStyle = baselineColor;
     this.ctx.lineWidth = 2;
     this.ctx.beginPath();
-    this.ctx.arc(leftWristPixel.x, leftWristPixel.y, markerRadius, 0, 2 * Math.PI);
+    this.ctx.arc(wandWristPixel.x, wandWristPixel.y, markerRadius, 0, 2 * Math.PI);
     this.ctx.stroke();
     
-    // Right wrist marker
+    // Off-hand wrist marker
     this.ctx.fillStyle = baselineColor;
     this.ctx.globalAlpha = 0.5;
     this.ctx.beginPath();
-    this.ctx.arc(rightWristPixel.x, rightWristPixel.y, markerRadius, 0, 2 * Math.PI);
+    this.ctx.arc(offHandWristPixel.x, offHandWristPixel.y, markerRadius, 0, 2 * Math.PI);
     this.ctx.fill();
     
     this.ctx.globalAlpha = 1.0;
     this.ctx.strokeStyle = baselineColor;
     this.ctx.lineWidth = 2;
     this.ctx.beginPath();
-    this.ctx.arc(rightWristPixel.x, rightWristPixel.y, markerRadius, 0, 2 * Math.PI);
+    this.ctx.arc(offHandWristPixel.x, offHandWristPixel.y, markerRadius, 0, 2 * Math.PI);
     this.ctx.stroke();
     
     // Add labels for wrists
@@ -470,8 +470,8 @@ export class Renderer {
     this.ctx.font = '10px monospace';
     this.ctx.textAlign = 'center';
     this.ctx.textBaseline = 'middle';
-    this.ctx.fillText('L', leftWristPixel.x, leftWristPixel.y);
-    this.ctx.fillText('R', rightWristPixel.x, rightWristPixel.y);
+    this.ctx.fillText(`${baseline.wandHand === 'right' ? 'R' : 'L'} (wand)`, wandWristPixel.x, wandWristPixel.y);
+    this.ctx.fillText(`${baseline.wandHand === 'right' ? 'L' : 'R'} (off)`, offHandWristPixel.x, offHandWristPixel.y);
     
     // 4. Draw calibration quality metrics text overlay
     // Position in bottom-left corner

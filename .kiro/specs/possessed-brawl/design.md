@@ -1,43 +1,43 @@
-# Design Document: Possessed Brawl
+# Design Document: Spell Duel
 
 ## Overview
 
-Possessed Brawl is a browser-based stick-figure fighting game controlled through webcam pose detection. The system captures player movements via MediaPipe Pose and translates them into fighting moves (jab, power punch, duck, block, charge attack) for real-time combat gameplay. The project targets mobile devices (Chrome v100+, Safari v15+) running in landscape orientation (HTTP for local development, HTTPS for mobile device testing) at 20-30 fps.
+Spell Duel is a browser-based wizard duel controlled through webcam pose detection. The system captures player movements via MediaPipe Pose and translates hand gestures into spell casting using the $1 Unistroke Recognizer. The player stands waist-up, raises their off-hand to ready a spell, draws a shape in the air with their wand hand, and lowers the off-hand to cast.
+
+The project targets mobile devices (Chrome v100+, Safari v15+) running in landscape orientation (HTTP for local development, HTTPS for mobile device testing) at 20-30 fps.
 
 The design follows a three-stage implementation plan:
-1. **Stage 1 (Initial Implementation)**: Pose input, calibration, and move detection with debug overlay
-2. **Stage 2**: Game engine with physics, AI opponent, and combat mechanics
-3. **Stage 3**: Enhanced graphics and audio polish
+1. **Stage 1 (Initial Implementation)**: Pose input, calibration, wand selection, gesture recognition, spell casting checkpoint with placeholder effects
+2. **Stage 2**: Game engine with wizard duel, AI opponent, mana/health, spell effects and counters, round timer
+3. **Stage 3**: Visual and audio polish with procedural effects
 
 This document emphasizes Stage 1 architecture since implementation will pause after this stage for user confirmation before proceeding to Stage 2.
 
 ### Key Technologies
 
-- **MediaPipe Pose (JavaScript)**: Real-time body landmark detection ([MediaPipe Pose Landmarker](https://developers.google.com/edge/mediapipe/solutions/vision/pose_landmarker))
-- **Matter.js**: 2D physics engine with 17.8k GitHub stars, excellent browser compatibility and performance
-- **Web Audio API**: Browser-native sound effect playback
+- **MediaPipe Pose (JavaScript)**: Real-time body landmark detection ([MediaPipe Pose Landmarker](https://developers.google.com/mediapipe/solutions/vision/pose_landmarker))
+- **$1 Unistroke Recognizer**: Shape recognition algorithm (implemented from scratch, no dependencies)
+- **Web Audio API**: Browser-native procedural sound effect playback
 - **HTML5 Canvas**: 2D rendering with requestAnimationFrame
 - **Vanilla JavaScript/TypeScript**: No framework dependency to minimize bundle size and maximize mobile performance
 
 ### Research Summary
 
-**MediaPipe Pose Performance**: MediaPipe Pose has been successfully deployed in browser-based fitness and pose tracking applications achieving 25-60 FPS on consumer hardware. The library extracts 33 body landmarks including the critical joints needed for this game (wrists, elbows, shoulders, head). It runs entirely client-side with no server dependency, which aligns with privacy goals and eliminates network latency.
+**MediaPipe Pose Performance**: MediaPipe Pose has been successfully deployed in browser-based fitness and pose tracking applications achieving 25-60 FPS on consumer hardware. The library extracts 33 body landmarks including the critical joints needed for this game (wrists, shoulders, head). It runs entirely client-side with no server dependency.
 
-**Physics Engine Selection**: Matter.js emerges as the recommended choice over planck.js due to broader adoption, better documentation, and native JavaScript implementation optimized for browser environments. While planck.js is a faithful Box2D port, Matter.js offers simpler APIs and better performance for 2D browser games.
+**$1 Unistroke Recognizer**: Published by Jacob O. Wobbrock, Andrew D. Wilson, and Yang Li in 2007. A simple, rotation/scale/position-invariant gesture recognizer requiring only ~100 lines of code. Resample → rotate → scale → translate → compare. Proven effective for single-stroke shape recognition with 97%+ accuracy on standard gesture datasets.
 
-**EMA Filtering**: Exponential Moving Average (EMA) is widely used for smoothing noisy sensor data in real-time systems. An alpha value around 0.3 provides a good balance—small enough to smooth jittery webcam input but large enough to remain responsive to intentional movements. Lower alpha values increase smoothing but add latency; higher values track faster but preserve noise.
+**EMA Filtering**: Exponential Moving Average (EMA) with alpha around 0.3 provides a good balance—small enough to smooth jittery webcam input but large enough to remain responsive to intentional movements.
 
 ## Architecture
 
 ### Component Structure
 
-The system follows a modular architecture with clear separation of concerns:
-
 ```
 ┌─────────────────────────────────────────────────────────────────┐
 │                         Application Layer                        │
 │  - Initialization and lifecycle management                       │
-│  - Component wiring and dependency injection                     │
+│  - Component wiring and event flow                               │
 │  - Main game loop coordination                                   │
 └─────────────────────────────────────────────────────────────────┘
                                   │
@@ -45,14 +45,14 @@ The system follows a modular architecture with clear separation of concerns:
         │                         │                         │
         ▼                         ▼                         ▼
 ┌──────────────┐         ┌──────────────┐         ┌──────────────┐
-│ Pose_Detector│         │  Calibrator  │         │Move_Recognizer│
+│ Pose_Detector│         │  Calibrator  │         │Stroke_Capture│
 │              │────────▶│              │────────▶│              │
-│ - Webcam     │         │ - Baseline   │         │ - Move       │
-│   capture    │         │   recording  │         │   detection  │
-│ - MediaPipe  │         │ - Guard      │         │ - Cooldowns  │
-│   processing │         │   position   │         │ - Thresholds │
-│ - Landmark   │         │   detection  │         │              │
-│   extraction │         │              │         │              │
+│ - Webcam     │         │ - Wand hand  │         │ - Off-hand   │
+│   capture    │         │   selection  │         │   ready/cast │
+│ - MediaPipe  │         │ - Baseline   │         │ - Wand trail │
+│   processing │         │   recording  │         │   recording  │
+│ - Landmark   │         │ - Resting    │         │ - Cancel     │
+│   extraction │         │   wrist pos  │         │   detection  │
 └──────────────┘         └──────────────┘         └──────────────┘
         │                                                  │
         │                                                  │
@@ -60,14 +60,25 @@ The system follows a modular architecture with clear separation of concerns:
                            │
                            ▼
                   ┌──────────────┐
+                  │   Gesture    │
+                  │  Recognizer  │
+                  │              │
+                  │ - $1 algo    │
+                  │ - Template   │
+                  │   matching   │
+                  │ - Training   │
+                  └──────────────┘
+                           │
+                           ▼
+                  ┌──────────────┐
                   │  Game_Engine │
                   │              │
-                  │ - Fighter    │
+                  │ - Wizard     │
                   │   state      │
                   │ - Health &   │
-                  │   stamina    │
-                  │ - Combat     │
-                  │   logic      │
+                  │   mana       │
+                  │ - Spell      │
+                  │   resolution │
                   │ - Scoring    │
                   └──────────────┘
                            │
@@ -75,14 +86,13 @@ The system follows a modular architecture with clear separation of concerns:
         │                  │                  │
         ▼                  ▼                  ▼
 ┌──────────────┐  ┌──────────────┐  ┌──────────────┐
-│Physics_Engine│  │AI_Controller │  │ Audio_Manager│
+│Spell_System  │  │ AI_Wizard    │  │Audio_Manager │
 │              │  │              │  │              │
-│ - Ragdoll    │  │ - Behavior   │  │ - Sound      │
-│   physics    │  │   patterns   │  │   effects    │
-│ - Collision  │  │ - Adaptive   │  │ - Web Audio  │
-│   detection  │  │   difficulty │  │   API        │
-│ - Matter.js  │  │ - Taunt      │  │              │
-│   wrapper    │  │   system     │  │              │
+│ - Mana costs │  │ - Weighted   │  │ - Procedural │
+│ - Damage     │  │   spell pick │  │   sounds     │
+│ - Counter    │  │ - Adaptive   │  │ - Web Audio  │
+│   table      │  │   difficulty │  │   API        │
+│ - Effects    │  │ - Taunts     │  │              │
 └──────────────┘  └──────────────┘  └──────────────┘
         │                  │                  │
         └──────────────────┼──────────────────┘
@@ -92,18 +102,19 @@ The system follows a modular architecture with clear separation of concerns:
                   │   Renderer   │
                   │              │
                   │ - Stick      │
-                  │   figures    │
-                  │ - UI bars    │
+                  │   wizards    │
+                  │ - Wand trail │
+                  │ - Rune glow  │
+                  │ - Spell      │
+                  │   sigils     │
                   │ - Debug      │
                   │   overlay    │
-                  │ - Canvas     │
-                  │   drawing    │
                   └──────────────┘
 ```
 
 ### Module Interfaces and Data Flow
 
-#### Stage 1 Data Flow (Pose Detection and Move Recognition)
+#### Stage 1 Data Flow (Spell Casting Checkpoint)
 
 ```
 Webcam Feed
@@ -119,68 +130,70 @@ Pose_Detector.smoothLandmarks()
     ├─▶ Smoothed landmarks
     │
     ▼
-Calibrator.isInGuardPosition(landmarks)
+Calibrator.selectWandHand(landmarks)
     │
-    ├─▶ boolean (guard position detected)
+    ├─▶ WandHand (LEFT or RIGHT)
     │
     ▼
 Calibrator.recordBaseline(landmarks)
     │
-    ├─▶ BaselineData (centerPos, shoulderWidth, headHeight)
+    ├─▶ BaselineData (centerPos, shoulderWidth, headHeight, wandWristBaseline)
     │
     ▼
-Move_Recognizer.detectMoves(landmarks, baseline)
+Stroke_Capture.updateOffHandState(landmarks, baseline)
     │
-    ├─▶ DetectedMove[] (jab, power_punch, duck, block, charge)
+    ├─▶ OffHandState (IDLE, READY_ARMING, READY_ARMED, CAST, CANCEL)
     │
     ▼
-Renderer.drawDebugOverlay(landmarks, moves, baseline)
+Stroke_Capture.recordWandPosition(landmarks, baseline)
     │
-    └─▶ Visual output on Canvas
+    ├─▶ Stroke (array of {x, y} points)
+    │
+    ▼
+Gesture_Recognizer.recognize(stroke)
+    │
+    ├─▶ RecognizedSpell (type, confidence)
+    │
+    ▼
+Renderer.displaySpellResult(spell)
+    │
+    ├─▶ Visual output: spell name, confidence, shape overlay, placeholder effect
+    │
+    └─▶ Stage 1 checkpoint complete
 ```
 
-#### Stage 2 Data Flow (Game Engine and Combat)
+#### Stage 2 Data Flow (Wizard Duel)
 
 ```
-DetectedMove[]
+RecognizedSpell
     │
     ▼
-Game_Engine.applyPlayerMove(move)
+Game_Engine.castPlayerSpell(spell)
     │
-    ├─▶ FighterState update (position, animation, stamina)
-    │
-    ▼
-AI_Controller.selectMove(gameState)
-    │
-    ├─▶ AIMove
+    ├─▶ Check mana, deduct cost
     │
     ▼
-Game_Engine.applyAIMove(move)
+Spell_System.resolveSpell(spell, target)
     │
-    ├─▶ FighterState update
-    │
-    ▼
-Game_Engine.detectCollisions(playerFighter, aiFighter)
-    │
-    ├─▶ CollisionEvent[] (hit, block, miss)
+    ├─▶ Apply damage, check counters, apply effects
     │
     ▼
-Game_Engine.applyDamage(collision)
+AI_Wizard.selectSpell(gameState)
     │
-    ├─▶ Health/Stamina updates, Score changes
-    │
-    ▼
-Physics_Engine.applyForces(collision)
-    │
-    ├─▶ Ragdoll reactions, screen shake
+    ├─▶ AISpell (weighted pick, counter bias)
     │
     ▼
-Audio_Manager.playSound(collision.type)
+Game_Engine.castAISpell(spell)
     │
-    ├─▶ Sound effect playback
+    ├─▶ WizardState updates (health, mana, active effects)
     │
     ▼
-Renderer.drawGameState(fighters, UI, effects)
+Audio_Manager.playSpellSound(spell.type)
+    │
+    ├─▶ Procedural sound playback
+    │
+    ▼
+Renderer.drawGameState(wizards, UI, effects)
     │
     └─▶ Visual output on Canvas
 ```
@@ -188,9 +201,9 @@ Renderer.drawGameState(fighters, UI, effects)
 ### Technology Stack and Browser Compatibility
 
 **Core Technologies:**
-- **MediaPipe Pose v0.5+**: JavaScript library loaded via CDN or bundled via npm
-- **Matter.js v0.18+**: 2D physics engine with optimization improvements
-- **Web Audio API**: Native browser API, no polyfills needed
+- **MediaPipe Pose v0.5+**: JavaScript library loaded via npm
+- **$1 Recognizer**: Implemented from scratch (no dependencies)
+- **Web Audio API**: Native browser API, procedural synthesis only
 - **HTML5 Canvas**: 2D rendering context with hardware acceleration
 
 **Target Browsers:**
@@ -202,12 +215,10 @@ Renderer.drawGameState(fighters, UI, effects)
 **Performance Targets:**
 - 20-30 fps on mid-range mobile devices (e.g., iPhone 12, Samsung Galaxy A52)
 - MediaPipe processing: ~40-50ms per frame
-- Physics simulation: 16ms timestep (60Hz)
 - Rendering: remaining frame budget (~10-15ms)
 
 **Mobile Optimizations:**
 - Use MediaPipe "lite" model variant for reduced computational cost
-- Limit physics body count (<20 rigid bodies)
 - Minimize canvas redraws (only redraw changed regions in Stage 3)
 - Disable high-precision timing and reduce landmark count where possible
 
@@ -220,24 +231,14 @@ Renderer.drawGameState(fighters, UI, effects)
 **Interface:**
 ```typescript
 interface PoseDetector {
-  // Initialize webcam and MediaPipe Pose
   initialize(): Promise<void>;
-  
-  // Process a single video frame and return landmarks
   processFrame(): Promise<Landmarks | null>;
-  
-  // Apply EMA smoothing to landmark positions
   smoothLandmarks(raw: Landmarks, previous: Landmarks): Landmarks;
-  
-  // Check if visibility is above threshold
   isLandmarkVisible(landmark: Landmark): boolean;
-  
-  // Release resources
   dispose(): void;
 }
 
 interface Landmarks {
-  // Array of 33 body landmarks from MediaPipe
   points: Landmark[];
   timestamp: number;
 }
@@ -253,7 +254,7 @@ interface Landmark {
 **Key Methods:**
 
 - `initialize()`: Requests webcam permission, initializes MediaPipe Pose with lite model, sets up video element with mirrored display
-- `processFrame()`: Captures current video frame, runs pose estimation, extracts waist-up landmarks (indices 0-16 from MediaPipe's 33-point model), filters by visibility threshold
+- `processFrame()`: Captures current video frame, runs pose estimation, extracts waist-up landmarks, filters by visibility threshold
 - `smoothLandmarks()`: Applies EMA filter with alpha=0.3 to each landmark's x, y, z coordinates
 - `isLandmarkVisible()`: Returns true if `landmark.visibility >= VISIBILITY_THRESHOLD` (default 0.5)
 
@@ -268,42 +269,41 @@ interface Landmark {
 
 ### Calibrator
 
-**Responsibility:** Detect guard position, record baseline pose measurements during calibration period.
+**Responsibility:** Select wand hand, detect ready stance, record baseline pose measurements.
 
 **Interface:**
 ```typescript
 interface Calibrator {
-  // Check if landmarks represent guard position
-  isInGuardPosition(landmarks: Landmarks): boolean;
-  
-  // Start recording baseline data
+  selectWandHand(): Promise<WandHand>;
+  isInReadyStance(landmarks: Landmarks): boolean;
   startCalibration(): void;
-  
-  // Record a frame of baseline data
   recordFrame(landmarks: Landmarks): void;
-  
-  // Finish calibration and compute baseline
   finishCalibration(): BaselineData;
-  
-  // Get calibration progress (0-1)
   getProgress(): number;
 }
 
+enum WandHand {
+  LEFT = 'left',
+  RIGHT = 'right'
+}
+
 interface BaselineData {
+  wandHand: WandHand;
   centerPosition: { x: number; y: number };
   shoulderWidth: number;
   headHeight: number;
-  leftWristBaseline: { x: number; y: number; z: number };
-  rightWristBaseline: { x: number; y: number; z: number };
+  wandWristBaseline: { x: number; y: number; z: number };
+  offHandWristBaseline: { x: number; y: number; z: number };
 }
 ```
 
 **Key Methods:**
 
-- `isInGuardPosition()`: Checks if both wrists are within threshold distance of head (typical boxing guard), shoulders are level (vertical difference < threshold), head is upright
+- `selectWandHand()`: Displays selection screen with left/right buttons, default right
+- `isInReadyStance()`: Checks if off-hand is raised to shoulder height, wand hand relaxed
 - `startCalibration()`: Resets frame buffer, starts 1-second timer
 - `recordFrame()`: Adds landmark data to buffer for averaging
-- `finishCalibration()`: Computes mean values across buffered frames for center position (average of shoulders), shoulder width (distance between left and right shoulders), head height (vertical position), wrist baselines (mean wrist positions in guard stance)
+- `finishCalibration()`: Computes mean values across buffered frames for center position, shoulder width, head height, wand wrist baseline
 
 **Dependencies:**
 - Pose_Detector (consumes landmarks)
@@ -311,134 +311,95 @@ interface BaselineData {
 **Error Handling:**
 - Incomplete calibration data → Reject and require re-calibration
 - Landmark visibility drops during calibration → Exclude bad frames, extend calibration period if needed
-- Guard position not detected → Display coaching prompts with visual guide
+- Ready stance not detected → Display coaching prompts with visual guide
 
-### Move_Recognizer
+### Stroke_Capture
 
-**Responsibility:** Detect player moves from calibrated pose data, enforce cooldowns and thresholds.
+**Responsibility:** Detect off-hand ready/cast/cancel gestures, record wand trail, manage stroke lifecycle.
 
 **Interface:**
 ```typescript
-interface MoveRecognizer {
-  // Detect moves from current landmarks relative to baseline
-  detectMoves(
-    landmarks: Landmarks, 
-    baseline: BaselineData
-  ): DetectedMove[];
-  
-  // Update cooldown timers
-  updateCooldowns(deltaTime: number): void;
-  
-  // Configure tunable thresholds
-  setThresholds(config: ThresholdConfig): void;
-  
-  // Get current configuration
-  getThresholds(): ThresholdConfig;
+interface StrokeCapture {
+  updateOffHandState(landmarks: Landmarks, baseline: BaselineData): OffHandState;
+  recordWandPosition(landmarks: Landmarks, baseline: BaselineData): void;
+  getStroke(): Stroke | null;
+  clearStroke(): void;
+  getWandTrail(): TrailPoint[];
+  setThresholds(config: StrokeCaptureConfig): void;
+  getThresholds(): StrokeCaptureConfig;
 }
 
-interface DetectedMove {
-  type: MoveType;
-  intensity: number;    // 0-1 scale for visualization
+enum OffHandState {
+  IDLE = 'idle',
+  READY_ARMING = 'ready_arming',
+  READY_ARMED = 'ready_armed',
+  CAST = 'cast',
+  CANCEL = 'cancel'
+}
+
+interface Stroke {
+  points: { x: number; y: number }[];
   timestamp: number;
 }
 
-enum MoveType {
-  JAB = 'jab',
-  POWER_PUNCH = 'power_punch',
-  DUCK = 'duck',
-  BLOCK = 'block',
-  CHARGE = 'charge',
-  NONE = 'none'
+interface TrailPoint {
+  x: number;
+  y: number;
+  age: number;  // milliseconds since added, for fade-out
 }
 
-interface ThresholdConfig {
-  // Jab detection
-  jabThreshold: number;          // Distance threshold (normalized)
-  jabCooldown: number;           // Milliseconds
-  
-  // Power punch detection
-  powerPunchThreshold: number;
-  powerPunchCooldown: number;
-  
-  // Duck detection
-  duckThreshold: number;
-  duckTimeWindow: number;        // Max time for drop (ms)
-  duckCooldown: number;
-  
-  // Block detection
-  blockProximityThreshold: number;
-  
-  // Charge attack detection
-  chargeProximityThreshold: number;
-  chargeReleaseThreshold: number;
-  chargeStaminaThreshold: number;
-  chargeCooldown: number;
-  
-  // Depth control
-  shoulderWidthForwardThreshold: number;
-  shoulderWidthBackwardThreshold: number;
+interface StrokeCaptureConfig {
+  offHandRaiseThreshold: number;      // Y-position relative to shoulders
+  armingDelay: number;                // Milliseconds to hold before arming
+  hysteresisMargin: number;           // Threshold hysteresis to prevent flicker
+  cancelHorizontalThreshold: number;  // Horizontal movement distance for cancel
+  minStrokeLength: number;            // Minimum stroke length (Euclidean)
+  minStrokeBoundingBox: number;       // Minimum bounding box size
+  trailLagFrames: number;             // Visual lag for wand trail (frames)
+  trailFadeDuration: number;          // Trail fade time (milliseconds)
 }
 ```
 
 **Key Algorithms:**
 
-**Jab Detection:**
+**Off-Hand State Machine:**
 ```
-1. Get left wrist current position
-2. Compute z-axis delta from baseline: delta_z = wrist.z - baseline.leftWrist.z
-3. If delta_z > jabThreshold AND jabCooldownRemaining == 0:
-     - Emit JAB move
-     - Start cooldown timer
+IDLE:
+  - If off-hand wrist.y < shoulder.y - raiseThreshold → READY_ARMING
+  - Start arming timer
+
+READY_ARMING:
+  - If off-hand drops below (threshold - hysteresis) → IDLE, reset timer
+  - If timer reaches armingDelay → READY_ARMED
+
+READY_ARMED:
+  - Record wand position each frame
+  - If off-hand drops below (threshold - hysteresis) → CAST, finalize stroke
+  - If off-hand moves horizontally > cancelThreshold → CANCEL, discard stroke
+
+CAST:
+  - Stroke finalized and available via getStroke()
+  - Return to IDLE next frame
+
+CANCEL:
+  - Stroke discarded
+  - Return to IDLE next frame
 ```
 
-**Power Punch Detection:**
+**Wand Trail Recording:**
 ```
-1. Get right wrist current position
-2. Compute z-axis delta from baseline: delta_z = wrist.z - baseline.rightWrist.z
-3. If delta_z > powerPunchThreshold AND powerPunchCooldownRemaining == 0:
-     - Emit POWER_PUNCH move
-     - Start cooldown timer
-```
-
-**Duck Detection:**
-```
-1. Get head and shoulder current positions
-2. Compute vertical delta from baseline:
-     delta_head = baseline.headHeight - head.y
-     delta_shoulders = baseline.shoulderHeight - shoulders.y
-3. Compute drop speed: speed = delta / timeElapsed
-4. If delta_head > duckThreshold 
-   AND delta_shoulders > duckThreshold
-   AND speed > minDropSpeed
-   AND duckCooldownRemaining == 0:
-     - Emit DUCK move
-     - Start cooldown timer
-```
-
-**Block Detection:**
-```
-1. Get both wrist positions and head position
-2. Compute distances:
-     dist_left = euclideanDistance(leftWrist, head)
-     dist_right = euclideanDistance(rightWrist, head)
-3. If dist_left < blockProximityThreshold 
-   AND dist_right < blockProximityThreshold:
-     - Emit BLOCK move (continuous, no cooldown)
-   Else:
-     - Stop emitting BLOCK
-```
-
-**Charge Attack Detection:**
-```
-1. Compute distance between wrists: wrist_dist = euclideanDistance(leftWrist, rightWrist)
-2. State machine:
-     - IDLE: If wrist_dist < chargeProximityThreshold → CHARGING
-     - CHARGING: If wrist_dist > chargeReleaseThreshold → Check stamina
-         - If stamina >= chargeStaminaThreshold AND chargeCooldownRemaining == 0:
-             - Emit CHARGE move
-             - Start cooldown timer
-             - Return to IDLE
-3. Reset to IDLE if charging held too long (timeout)
+WHILE offHandState == READY_ARMED:
+  wandPos = landmarks.points[WAND_WRIST_INDEX]
+  stroke.points.push({ x: wandPos.x, y: wandPos.y })
+  
+  # Visual trail with lag
+  trailBuffer.push({ x: wandPos.x, y: wandPos.y, age: 0 })
+  
+  # Update ages and remove old points
+  FOR point IN trailBuffer:
+    point.age += deltaTime
+    IF point.age > trailFadeDuration:
+      trailBuffer.remove(point)
 ```
 
 **Dependencies:**
@@ -446,48 +407,159 @@ interface ThresholdConfig {
 - Pose_Detector (consumes Landmarks)
 
 **Error Handling:**
-- Missing landmarks → Skip move detection for that frame
-- Invalid baseline data → Disable move detection until re-calibration
-- Conflicting moves (e.g., jab + duck simultaneously) → Prioritize by precedence order: CHARGE > BLOCK > DUCK > POWER_PUNCH > JAB
+- Missing landmarks → Skip frame, maintain last state
+- Stroke below min length/size → Reject with fizzle
+- State machine stuck → Reset to IDLE on timeout (5 seconds)
 
-### Game_Engine
+### Gesture_Recognizer
 
-**Responsibility:** Manage fighter state, health, stamina, combat logic, round timers, scoring.
+**Responsibility:** Implement $1 Unistroke Recognizer, match strokes to spell templates, manage template training.
+
+**Interface:**
+```typescript
+interface GestureRecognizer {
+  recognize(stroke: Stroke): RecognizedSpell;
+  loadTemplates(): void;
+  saveTemplates(): void;
+  trainTemplate(spellType: SpellType, samples: Stroke[]): void;
+  resetToDefaults(): void;
+  setRejectionThreshold(threshold: number): void;
+  getRejectionThreshold(): number;
+}
+
+interface RecognizedSpell {
+  type: SpellType;
+  confidence: number;  // 0-1, computed as (1 - distance/maxDistance)
+  matchScore: number;  // Raw distance score from $1 algorithm
+}
+
+enum SpellType {
+  SHIELD = 'shield',
+  LIGHTNING = 'lightning',
+  FIREBALL = 'fireball',
+  FROST = 'frost',
+  FIZZLE = 'fizzle'  // Failed recognition
+}
+
+interface SpellTemplate {
+  type: SpellType;
+  points: { x: number; y: number }[];
+}
+```
+
+**Key Algorithms:**
+
+**$1 Unistroke Recognizer:**
+```
+function recognize(stroke, templates, rejectionThreshold):
+  # Step 1: Resample stroke to N points (e.g., 64)
+  resampled = resample(stroke.points, N)
+  
+  # Step 2: Rotate to indicative angle
+  # (direction from centroid to first point = 0°)
+  centroid = computeCentroid(resampled)
+  angle = atan2(centroid.y - resampled[0].y, centroid.x - resampled[0].x)
+  rotated = rotateBy(resampled, -angle)
+  
+  # Step 3: Scale to reference square
+  boundingBox = computeBoundingBox(rotated)
+  scaled = scaleTo(rotated, REFERENCE_SIZE)
+  
+  # Step 4: Translate to origin
+  translated = translateTo(scaled, {x: 0, y: 0})
+  
+  # Step 5: Compare to all templates
+  bestMatch = null
+  bestDistance = Infinity
+  
+  FOR template IN templates:
+    distance = pathDistance(translated, template.points)
+    IF distance < bestDistance:
+      bestDistance = distance
+      bestMatch = template
+  
+  # Step 6: Reject if distance too high
+  IF bestDistance > rejectionThreshold:
+    RETURN { type: FIZZLE, confidence: 0, matchScore: bestDistance }
+  
+  # Step 7: Return best match with confidence
+  confidence = 1 - (bestDistance / rejectionThreshold)
+  RETURN { type: bestMatch.type, confidence: confidence, matchScore: bestDistance }
+```
+
+**Path Distance (Average point-to-point distance):**
+```
+function pathDistance(path1, path2):
+  # Both paths already resampled to same N points
+  sum = 0
+  FOR i FROM 0 TO N-1:
+    d = euclideanDistance(path1[i], path2[i])
+    sum += d
+  RETURN sum / N
+```
+
+**Template Training:**
+```
+function trainTemplate(spellType, samples):
+  # Average 3 samples into a single template
+  # Each sample is already a stroke
+  
+  # Step 1: Normalize all samples with $1 preprocessing
+  normalized = []
+  FOR sample IN samples:
+    resampled = resample(sample.points, N)
+    rotated = rotateToIndicativeAngle(resampled)
+    scaled = scaleTo(rotated, REFERENCE_SIZE)
+    translated = translateTo(scaled, {x: 0, y: 0})
+    normalized.push(translated)
+  
+  # Step 2: Average corresponding points
+  averaged = []
+  FOR i FROM 0 TO N-1:
+    avgX = (normalized[0][i].x + normalized[1][i].x + normalized[2][i].x) / 3
+    avgY = (normalized[0][i].y + normalized[1][i].y + normalized[2][i].y) / 3
+    averaged.push({ x: avgX, y: avgY })
+  
+  # Step 3: Store template
+  templates[spellType] = { type: spellType, points: averaged }
+  
+  # Step 4: Save to localStorage
+  saveTemplates()
+```
+
+**Default Templates (shipped with game):**
+- **Circle**: 64 points forming a circle (360° / 64 ≈ 5.625° increments)
+- **Zigzag**: 64 points forming 3-4 peaks (sin wave with sharp corners)
+- **Straight Line**: 64 points forming a horizontal line from left to right
+- **V Shape**: 64 points forming a V (45° down, then 45° up)
+
+**Dependencies:**
+- Stroke_Capture (consumes Stroke)
+- localStorage (for template persistence)
+
+**Error Handling:**
+- Invalid stroke (< 2 points) → Return fizzle
+- localStorage unavailable → Use default templates only, disable training
+- Template load failure → Reset to defaults
+
+### Game_Engine (Stage 2)
+
+**Responsibility:** Manage wizard state, health, mana, spell effects, round timer, win/loss conditions, scoring.
 
 **Interface:**
 ```typescript
 interface GameEngine {
-  // Initialize game state
   initialize(config: GameConfig): void;
-  
-  // Update game state (called each frame)
   update(deltaTime: number): void;
-  
-  // Apply player move to player fighter
-  applyPlayerMove(move: DetectedMove): void;
-  
-  // Apply AI move to opponent fighter
-  applyAIMove(move: DetectedMove): void;
-  
-  // Check for collisions and hits
-  detectCollisions(): CollisionEvent[];
-  
-  // Apply damage from collision
-  applyDamage(collision: CollisionEvent): void;
-  
-  // Update scores and combos
-  updateScoring(event: GameEvent): void;
-  
-  // Check win/loss conditions
+  castPlayerSpell(spell: RecognizedSpell): CastResult;
+  castAISpell(spell: AISpell): CastResult;
   checkRoundEnd(): RoundResult | null;
-  
-  // Get current game state
   getState(): GameState;
 }
 
 interface GameState {
-  playerFighter: FighterState;
-  aiFighter: FighterState;
+  playerWizard: WizardState;
+  aiWizard: WizardState;
   roundTimer: number;
   playerScore: number;
   aiScore: number;
@@ -496,27 +568,25 @@ interface GameState {
   matchState: MatchState;
 }
 
-interface FighterState {
+interface WizardState {
   health: number;          // 0-100
-  stamina: number;         // 0-100
-  position: { x: number; y: number; depth: number };
-  velocity: { x: number; y: number };
-  currentMove: MoveType;
-  animationState: AnimationState;
-  isBlocking: boolean;
-  isKnockedOut: boolean;
+  mana: number;            // 0-100
+  position: { x: number; y: number };
+  activeShield: boolean;
+  frostSlowed: boolean;    // Next cast delayed
+  currentCast: SpellType | null;
+  castAnimation: number;   // Progress 0-1
 }
 
-interface CollisionEvent {
-  attacker: 'player' | 'ai';
-  defender: 'player' | 'ai';
-  moveType: MoveType;
-  damageAmount: number;
-  wasBlocked: boolean;
-  hitPosition: { x: number; y: number };
+interface CastResult {
+  success: boolean;
+  spell: SpellType;
+  manaCost: number;
+  reason?: string;  // If failed: "insufficient mana", "on cooldown", etc.
 }
 
 enum MatchState {
+  SETUP = 'setup',
   CALIBRATING = 'calibrating',
   COUNTDOWN = 'countdown',
   FIGHTING = 'fighting',
@@ -525,512 +595,483 @@ enum MatchState {
 }
 ```
 
-**Key Algorithms:**
+**Key Algorithms (Stage 2):**
 
-**Damage Calculation:**
+**Spell Resolution:**
 ```
-baseDamage = {
-  JAB: 5,
-  POWER_PUNCH: 12,
-  CHARGE: 25
-}
-
-actualDamage = baseDamage[moveType]
-if defender.isBlocking:
-  actualDamage *= BLOCK_REDUCTION_FACTOR  // e.g., 0.3 (70% reduction)
-
-defender.health -= actualDamage
-defender.health = max(0, defender.health)
-```
-
-**Stamina Management:**
-```
-# Stamina gain on hit
-if move.landed:
-  attacker.stamina += STAMINA_GAIN_PER_HIT  // e.g., 10
-
-# Stamina cost per move
-moveCost = {
-  JAB: 5,
-  POWER_PUNCH: 15,
-  DUCK: 10,
-  BLOCK: 2 per second,
-  CHARGE: 50
-}
-
-attacker.stamina -= moveCost[moveType]
-attacker.stamina = max(0, attacker.stamina)
-
-# Passive regeneration
-if fighter.currentMove == NONE:
-  fighter.stamina += STAMINA_REGEN_RATE * deltaTime  // e.g., 5 per second
-  fighter.stamina = min(100, fighter.stamina)
+function resolveSpell(attacker, defender, spell):
+  # Check counter table
+  IF spell == FIREBALL AND defender.activeShield:
+    # Shield blocks fireball, no damage
+    defender.activeShield = false
+    RETURN { blocked: true, damage: 0 }
+  
+  IF spell == LIGHTNING AND defender.activeShield:
+    # Lightning breaks shield and deals damage
+    defender.activeShield = false
+    damage = SPELL_DAMAGE[LIGHTNING]
+    defender.health -= damage
+    RETURN { blocked: false, damage: damage }
+  
+  IF spell == SHIELD:
+    # Activate shield for attacker
+    attacker.activeShield = true
+    RETURN { blocked: false, damage: 0 }
+  
+  IF spell == FROST:
+    # Apply slow effect
+    defender.frostSlowed = true
+    RETURN { blocked: false, damage: SPELL_DAMAGE[FROST] }
+  
+  # Default: apply damage
+  damage = SPELL_DAMAGE[spell]
+  defender.health -= damage
+  defender.health = clamp(defender.health, 0, 100)
+  RETURN { blocked: false, damage: damage }
 ```
 
-**Scoring System:**
+**Mana Management:**
 ```
-# Base points
-points = {
-  JAB_HIT: 10,
-  POWER_PUNCH_HIT: 25,
-  CHARGE_HIT: 50
-}
+function castSpell(wizard, spell):
+  cost = SPELL_COST[spell]
+  
+  IF wizard.mana < cost:
+    RETURN { success: false, reason: "insufficient mana" }
+  
+  wizard.mana -= cost
+  wizard.mana = max(wizard.mana, 0)
+  
+  RETURN { success: true, spell: spell, manaCost: cost }
 
-# Combo multiplier
-if consecutiveHits > 0:
-  multiplier = 1 + (consecutiveHits * 0.2)  // +20% per combo hit
-  points *= multiplier
-
-fighter.score += points
-
-# Round win bonus
-if roundWon:
-  winner.score += ROUND_WIN_BONUS  // e.g., 200
+function updateMana(wizard, deltaTime):
+  IF wizard.currentCast == null:
+    wizard.mana += MANA_REGEN_RATE * (deltaTime / 1000)
+    wizard.mana = min(wizard.mana, 100)
 ```
 
-**Dependencies:**
-- Move_Recognizer (consumes DetectedMove)
-- AI_Controller (generates AI moves)
-- Physics_Engine (collision detection and ragdoll reactions)
-- Audio_Manager (triggers sound effects)
+**Dependencies (Stage 2):**
+- Gesture_Recognizer (consumes RecognizedSpell)
+- Spell_System (spell costs, damage, counter table)
+- AI_Wizard (generates AI spell choices)
 
 **Error Handling:**
-- Invalid move type → Log warning and ignore
-- Negative health/stamina → Clamp to 0
+- Invalid spell type → Log warning and treat as fizzle
+- Negative health/mana → Clamp to 0
 - Timer underflow → End round immediately
 
-### Physics_Engine
+### Spell_System (Stage 2)
 
-**Responsibility:** Simulate ragdoll physics, apply forces from hits, handle collisions with walls.
+**Responsibility:** Define spell costs, damage values, counter rules, and effects.
 
 **Interface:**
 ```typescript
-interface PhysicsEngine {
-  // Initialize Matter.js world
-  initialize(config: PhysicsConfig): void;
-  
-  // Create a fighter ragdoll
-  createFighterBody(position: { x: number; y: number }): FighterBody;
-  
-  // Apply force from a hit
-  applyHitForce(
-    body: FighterBody, 
-    force: Vector, 
-    point: Vector
-  ): void;
-  
-  // Step physics simulation
-  step(deltaTime: number): void;
-  
-  // Get current body positions
-  getFighterPositions(): { player: Transform; ai: Transform };
-  
-  // Check for collision with boundaries
-  checkBoundaryCollisions(): BoundaryCollision[];
+interface SpellSystem {
+  getManaCost(spell: SpellType): number;
+  getDamage(spell: SpellType): number;
+  checkCounter(attackSpell: SpellType, defenseSpell: SpellType): CounterResult;
+  loadCounterTable(): void;
 }
 
-interface FighterBody {
-  // Matter.js composite body (head, torso, arms, legs)
-  bodyParts: {
-    head: Matter.Body;
-    torso: Matter.Body;
-    leftArm: Matter.Body;
-    rightArm: Matter.Body;
-    leftLeg: Matter.Body;
-    rightLeg: Matter.Body;
-  };
-  
-  // Constraints connecting body parts
-  joints: Matter.Constraint[];
+interface CounterResult {
+  counters: boolean;
+  effect: string;  // Description of what happens
 }
 
-interface PhysicsConfig {
-  gravity: { x: number; y: number };
-  timeStep: number;           // Fixed timestep (e.g., 16ms)
-  iterations: number;         // Solver iterations (e.g., 6)
-  wallRestitution: number;    // Bounciness (e.g., 0.8)
+interface CounterTableEntry {
+  attacker: SpellType;
+  defender: SpellType;
+  counters: boolean;
+  effect: string;
 }
 ```
 
-**Key Algorithms:**
-
-**Ragdoll Construction:**
-```
-1. Create rigid bodies for each body part (circles/rectangles)
-2. Position parts relative to fighter center
-3. Create revolute joints at connection points:
-     - Head-torso: limited rotation ±30°
-     - Torso-arms: shoulder joints ±120°
-     - Torso-legs: hip joints ±90°
-4. Set body properties:
-     - Density for realistic mass distribution
-     - Friction for ground contact
-     - Restitution for bounce
-5. Group bodies into composite for easy manipulation
-```
-
-**Hit Force Application:**
-```
-forceMultiplier = {
-  JAB: 0.003,
-  POWER_PUNCH: 0.008,
-  CHARGE: 0.020
+**Counter Table (data-driven, stored in JSON):**
+```json
+{
+  "counters": [
+    { "attacker": "shield", "defender": "fireball", "counters": true, "effect": "Shield blocks fireball" },
+    { "attacker": "lightning", "defender": "shield", "counters": true, "effect": "Lightning breaks shield" },
+    { "attacker": "fireball", "defender": "frost", "counters": true, "effect": "Fireball melts frost" },
+    { "attacker": "frost", "defender": "lightning", "counters": false, "effect": "Frost slows lightning caster" }
+  ],
+  "costs": {
+    "shield": 20,
+    "lightning": 30,
+    "fireball": 15,
+    "frost": 25
+  },
+  "damage": {
+    "shield": 0,
+    "lightning": 25,
+    "fireball": 20,
+    "frost": 15
+  }
 }
-
-force = moveDirection * forceMultiplier[moveType]
-applicationPoint = hitPosition  // Where contact occurred
-
-Matter.Body.applyForce(targetBody, applicationPoint, force)
-
-# Additional effects for heavy hits
-if moveType == CHARGE or moveType == POWER_PUNCH:
-  - Trigger hit-stop (pause simulation for 80ms)
-  - Trigger screen shake
-  - Apply torque for spinning effect
-```
-
-**Wall Collision Response:**
-```
-1. Detect collision between fighter body and arena boundary
-2. If collision.speed > SQUASH_THRESHOLD:
-     - Calculate squash direction (perpendicular to wall)
-     - Apply squash-and-stretch deformation
-     - Increase restitution multiplier for bounce
-3. Apply impact particles/effects at collision point
 ```
 
 **Dependencies:**
-- Matter.js library
-- Game_Engine (receives collision events)
+- Game_Engine (provides spell rules)
 
-**Error Handling:**
-- Body position NaN → Reset to safe position (center of arena)
-- Excessive velocity → Clamp to maximum speed
-- Joint breakage → Reconnect joint or disable ragdoll temporarily
+### AI_Wizard (Stage 2)
 
-### AI_Controller
-
-**Responsibility:** Control opponent fighter behavior, implement adaptive difficulty, manage taunts.
+**Responsibility:** Control opponent wizard's spell casting, implement adaptive difficulty, display taunts.
 
 **Interface:**
 ```typescript
-interface AIController {
-  // Initialize AI with difficulty settings
+interface AIWizard {
   initialize(config: AIConfig): void;
-  
-  // Select next move based on game state
-  selectMove(gameState: GameState): DetectedMove | null;
-  
-  // Update AI timers and difficulty
+  selectSpell(gameState: GameState): AISpell | null;
   update(deltaTime: number): void;
-  
-  // Track player performance for difficulty adjustment
-  recordPlayerHit(move: DetectedMove): void;
-  
-  // Get current taunt/message
+  recordPlayerCast(spell: SpellType, success: boolean): void;
   getCurrentTaunt(): string | null;
 }
 
+interface AISpell {
+  type: SpellType;
+  castTime: number;  // When AI will cast (timestamp)
+}
+
 interface AIConfig {
-  baseAttackInterval: number;      // ms between attacks
-  baseBlockChance: number;         // 0-1 probability
-  baseDuckChance: number;          // 0-1 probability
-  adaptiveWindow: number;          // Rolling window size (e.g., 10 hits)
-  difficultyMultiplierMin: number; // e.g., 0.5
-  difficultyMultiplierMax: number; // e.g., 2.0
+  baseCastInterval: number;      // ms between casts
+  castIntervalVariation: number; // +/- random variation
+  counterBias: number;           // 0-1, how much to favor counters
+  adaptiveWindow: number;        // Rolling window size (e.g., 10)
+  difficultyMin: number;         // Min cast speed multiplier (e.g., 0.5)
+  difficultyMax: number;         // Max cast speed multiplier (e.g., 1.5)
 }
 ```
 
-**Key Algorithms:**
+**Key Algorithms (Stage 2):**
 
-**Randomized Timer System:**
+**Weighted Spell Selection:**
 ```
-# Initialize timers with random offsets
-attackTimer = randomRange(
-  baseAttackInterval * 0.8, 
-  baseAttackInterval * 1.2
-)
-
-blockTimer = randomRange(
-  baseBlockInterval * 0.7,
-  baseBlockInterval * 1.3
-)
-
-# Each frame
-attackTimer -= deltaTime
-if attackTimer <= 0:
-  executeRandomAttack()
-  attackTimer = randomRange(...)  // Reset with new random value
+function selectSpell(gameState):
+  weights = {
+    SHIELD: 0.25,
+    LIGHTNING: 0.25,
+    FIREBALL: 0.25,
+    FROST: 0.25
+  }
+  
+  # Bias toward counters if player is casting
+  IF gameState.playerWizard.currentCast != null:
+    counter = getCounterSpell(gameState.playerWizard.currentCast)
+    weights[counter] += counterBias
+  
+  # Normalize weights
+  totalWeight = sum(weights.values())
+  FOR spell IN weights:
+    weights[spell] /= totalWeight
+  
+  # Weighted random pick
+  return weightedRandom(weights)
 ```
 
 **Adaptive Difficulty:**
 ```
-# Track player hits in rolling window
-playerHits = CircularBuffer(size: adaptiveWindow)
-
-# Calculate player success rate
-playerHitRate = playerHits.count(true) / adaptiveWindow
-
-# Adjust AI speed based on player performance
-if playerHitRate > 0.7:  // Player doing well
-  speedMultiplier = 1 + ((playerHitRate - 0.7) / 0.3) * 0.5
-  # AI attacks 1.0x to 1.5x faster
-elif playerHitRate < 0.3:  // Player struggling
-  speedMultiplier = 0.5 + (playerHitRate / 0.3) * 0.5
-  # AI attacks 0.5x to 1.0x speed
-else:
-  speedMultiplier = 1.0
-
-adjustedAttackInterval = baseAttackInterval / speedMultiplier
-adjustedReactionTime = baseReactionTime / speedMultiplier
+function updateDifficulty():
+  # Track player success over rolling window
+  successRate = playerCastHistory.countSuccess() / adaptiveWindow
+  
+  # Adjust cast speed based on player performance
+  IF successRate > 0.7:
+    speedMultiplier = 1.0 + ((successRate - 0.7) / 0.3) * 0.5
+    # AI casts 1.0x to 1.5x faster
+  ELIF successRate < 0.3:
+    speedMultiplier = 0.5 + (successRate / 0.3) * 0.5
+    # AI casts 0.5x to 1.0x speed
+  ELSE:
+    speedMultiplier = 1.0
+  
+  adjustedCastInterval = baseCastInterval / speedMultiplier
 ```
 
 **Taunt System:**
 ```
-# Trigger conditions
-if difficultyIncreased:
-  showTaunt("You're getting better! Time to step it up!")
-elif playerCombo > 5:
-  showTaunt("Nice combo! But can you keep it up?")
-elif aiCombo > 5:
-  showTaunt("Is that all you got?")
-elif playerHealth < 20:
-  showTaunt("One more hit should do it!")
-
-# Display for 2-3 seconds in speech bubble
-tauntTimer = 2500 + random(500)
+function selectTaunt(event):
+  IF event == "difficulty_increase":
+    RETURN random(["You're getting better!", "Time to step it up!"])
+  ELIF event == "player_combo" AND playerCombo > 5:
+    RETURN random(["Nice combo!", "Impressive!"])
+  ELIF event == "ai_combo" AND aiCombo > 5:
+    RETURN random(["Is that all you got?", "Too easy!"])
+  ELIF event == "player_low_health" AND playerHealth < 20:
+    RETURN random(["One more spell!", "Almost there!"])
+  ELSE:
+    RETURN null
 ```
 
-**Dependencies:**
-- Game_Engine (consumes GameState, emits AI moves)
-
-**Error Handling:**
-- Invalid move selection → Fall back to JAB
-- Timer overflow → Reset to baseline interval
+**Dependencies (Stage 2):**
+- Game_Engine (consumes GameState)
+- Spell_System (counter table lookup)
 
 ### Renderer
 
-**Responsibility:** Draw stick figures, UI elements, debug overlay on HTML5 Canvas.
+**Responsibility:** Draw wizards, wand trail, rune glow, spell effects, UI elements, debug overlay on HTML5 Canvas.
 
 **Interface:**
 ```typescript
 interface Renderer {
-  // Initialize canvas and rendering context
   initialize(canvas: HTMLCanvasElement): void;
-  
-  // Draw complete frame
   render(state: RenderState): void;
-  
-  // Draw debug overlay with landmarks and thresholds
   drawDebugOverlay(debug: DebugData): void;
-  
-  // Draw fighter stick figure
-  drawFighter(fighter: FighterRenderData): void;
-  
-  // Draw UI elements (health bars, stamina bars, timer, score)
-  drawUI(ui: UIData): void;
-  
-  // Apply screen shake effect
-  applyScreenShake(intensity: number, duration: number): void;
-  
-  // Enable/disable debug mode
   setDebugMode(enabled: boolean): void;
+  applyScreenShake(intensity: number, duration: number): void;
 }
 
 interface RenderState {
-  fighters: {
-    player: FighterRenderData;
-    ai: FighterRenderData;
+  wizards: {
+    player: WizardRenderData;
+    ai: WizardRenderData;
   };
   ui: UIData;
-  effects: EffectData[];
+  effects: SpellEffect[];
+  wandTrail: TrailPoint[];
+  offHandRune: RuneGlow | null;
   debug?: DebugData;
 }
 
-interface FighterRenderData {
-  bodyParts: {
-    head: { x: number; y: number; rotation: number };
-    torso: { x: number; y: number; rotation: number };
-    leftArm: { x: number; y: number; rotation: number };
-    rightArm: { x: number; y: number; rotation: number };
-    leftLeg: { x: number; y: number; rotation: number };
-    rightLeg: { x: number; y: number; rotation: number };
-  };
-  color: string;
-  currentMove: MoveType;
+interface WizardRenderData {
+  position: { x: number; y: number };
+  pose: StickFigurePose;
+  activeShield: boolean;
+  castingSpell: SpellType | null;
+  health: number;
+  mana: number;
+}
+
+interface StickFigurePose {
+  head: { x: number; y: number };
+  torso: { x: number; y: number; rotation: number };
+  leftArm: { shoulder: Point; elbow: Point; wrist: Point };
+  rightArm: { shoulder: Point; elbow: Point; wrist: Point };
+}
+
+interface SpellEffect {
+  type: SpellType;
+  position: { x: number; y: number };
+  progress: number;  // 0-1 animation progress
+}
+
+interface RuneGlow {
+  position: { x: number; y: number };
+  intensity: number;  // 0-1
 }
 
 interface UIData {
   playerHealth: number;
   aiHealth: number;
-  playerStamina: number;
-  aiStamina: number;
+  playerMana: number;
+  aiMana: number;
   roundTimer: number;
   playerScore: number;
   aiScore: number;
-  playerCombo: number;
-  aiCombo: number;
+  spellResult?: { name: string; confidence: number };
   tauntText?: string;
 }
 
 interface DebugData {
   landmarks: Landmarks;
-  detectedMoves: DetectedMove[];
-  baseline: BaselineData;
-  thresholds: ThresholdConfig;
-  cooldowns: { [key in MoveType]: number };
+  offHandState: OffHandState;
+  stroke: Stroke | null;
+  wandTrail: TrailPoint[];
+  matchScores: { [spell: string]: number };
+  thresholds: any;
   fps: number;
 }
 ```
 
-**Key Rendering:**
+**Key Rendering (Stage 1):**
 
 **Stick Figure Drawing:**
 ```
-# Draw each body part as line segments
-function drawFighter(fighter):
-  ctx.strokeStyle = fighter.color
+function drawWizard(wizard):
+  ctx.strokeStyle = '#ffffff'
   ctx.lineWidth = 4
   ctx.lineCap = 'round'
   
   # Head (circle)
-  drawCircle(fighter.head.x, fighter.head.y, HEAD_RADIUS)
+  drawCircle(wizard.pose.head.x, wizard.pose.head.y, 20)
   
-  # Torso (line from shoulders to hips)
-  drawLine(shoulderCenter, hipCenter)
+  # Torso (line)
+  torsoEnd = { x: wizard.pose.head.x, y: wizard.pose.head.y + 80 }
+  drawLine(wizard.pose.head, torsoEnd)
   
-  # Arms (two segments: shoulder-elbow, elbow-wrist)
-  drawLine(leftShoulder, leftElbow)
-  drawLine(leftElbow, leftWrist)
-  drawLine(rightShoulder, rightElbow)
-  drawLine(rightElbow, rightWrist)
-  
-  # Legs (two segments: hip-knee, knee-ankle)
-  drawLine(leftHip, leftKnee)
-  drawLine(leftKnee, leftAnkle)
-  drawLine(rightHip, rightKnee)
-  drawLine(rightKnee, rightAnkle)
-  
-  # Highlight active move with glow effect
-  if fighter.currentMove != NONE:
-    applyGlowEffect(fighter.currentMove)
+  # Arms
+  drawLine(wizard.pose.leftArm.shoulder, wizard.pose.leftArm.elbow)
+  drawLine(wizard.pose.leftArm.elbow, wizard.pose.leftArm.wrist)
+  drawLine(wizard.pose.rightArm.shoulder, wizard.pose.rightArm.elbow)
+  drawLine(wizard.pose.rightArm.elbow, wizard.pose.rightArm.wrist)
 ```
 
-**UI Bar Drawing:**
+**Wand Trail Drawing:**
 ```
-function drawHealthBar(x, y, width, height, healthPercent, label):
-  # Background
-  ctx.fillStyle = '#333'
-  ctx.fillRect(x, y, width, height)
+function drawWandTrail(trail):
+  FOR i FROM 0 TO trail.length - 1:
+    point = trail[i]
+    alpha = 1.0 - (point.age / trailFadeDuration)
+    
+    ctx.strokeStyle = `rgba(255, 200, 100, ${alpha})`
+    ctx.lineWidth = 3
+    
+    IF i < trail.length - 1:
+      drawLine(point, trail[i + 1])
+```
+
+**Rune Glow (Off-Hand Ready Indicator):**
+```
+function drawRuneGlow(rune):
+  # Draw glowing circle under off-hand
+  ctx.fillStyle = `rgba(100, 200, 255, ${rune.intensity})`
+  ctx.shadowBlur = 20
+  ctx.shadowColor = 'rgba(100, 200, 255, 1)'
+  drawCircle(rune.position.x, rune.position.y, 30)
+  ctx.shadowBlur = 0
+```
+
+**Spell Result Overlay:**
+```
+function drawSpellResult(result):
+  ctx.fillStyle = '#ffffff'
+  ctx.font = 'bold 32px Arial'
+  ctx.textAlign = 'center'
+  ctx.fillText(result.name, canvas.width / 2, 100)
   
-  # Health fill (color gradient: green → yellow → red)
-  fillWidth = width * healthPercent
-  ctx.fillStyle = getHealthColor(healthPercent)
-  ctx.fillRect(x, y, fillWidth, height)
-  
-  # Border
-  ctx.strokeStyle = '#fff'
-  ctx.lineWidth = 2
-  ctx.strokeRect(x, y, width, height)
-  
-  # Label
-  ctx.fillStyle = '#fff'
-  ctx.font = '14px Arial'
-  ctx.fillText(label, x, y - 5)
+  ctx.font = '16px Arial'
+  ctx.fillText(`Confidence: ${(result.confidence * 100).toFixed(0)}%`, canvas.width / 2, 130)
+```
+
+**Placeholder Spell Effects (Stage 1):**
+```
+function drawPlaceholderEffect(spell):
+  SWITCH spell.type:
+    CASE SHIELD:
+      # Draw glowing circle around player
+      ctx.strokeStyle = 'rgba(100, 200, 255, 0.8)'
+      ctx.lineWidth = 4
+      drawCircle(playerWizard.position.x, playerWizard.position.y, 60)
+    
+    CASE LIGHTNING:
+      # Draw lightning bolt flash
+      ctx.strokeStyle = 'rgba(255, 255, 100, 1.0)'
+      ctx.lineWidth = 6
+      drawZigzagLine(playerWizard.position, aiWizard.position)
+    
+    CASE FIREBALL:
+      # Draw fireball projectile
+      ctx.fillStyle = 'rgba(255, 100, 50, 1.0)'
+      drawCircle(spell.position.x, spell.position.y, 15)
+    
+    CASE FROST:
+      # Draw frost wave
+      ctx.strokeStyle = 'rgba(150, 220, 255, 0.8)'
+      ctx.lineWidth = 8
+      drawWaveLine(playerWizard.position, aiWizard.position)
 ```
 
 **Debug Overlay:**
 ```
 function drawDebugOverlay(debug):
-  # Draw pose landmarks
-  for landmark in debug.landmarks.points:
-    if landmark.visibility > VISIBILITY_THRESHOLD:
-      drawCircle(landmark.x, landmark.y, 3, '#0f0')
-    else:
-      drawCircle(landmark.x, landmark.y, 3, '#f00')
+  # Draw landmarks
+  FOR landmark IN debug.landmarks.points:
+    IF landmark.visibility > 0.5:
+      drawCircle(landmark.x, landmark.y, 3, '#00ff00')
+    ELSE:
+      drawCircle(landmark.x, landmark.y, 3, '#ff0000')
   
-  # Draw skeleton lines connecting joints
-  drawSkeletonLines(debug.landmarks)
+  # Draw wand trail
+  ctx.strokeStyle = '#ffcc00'
+  drawPolyline(debug.wandTrail)
   
-  # Draw text overlay with values
+  # Draw text info
   textY = 20
-  ctx.fillStyle = '#fff'
+  ctx.fillStyle = '#ffffff'
   ctx.font = '12px monospace'
+  ctx.textAlign = 'left'
   ctx.fillText(`FPS: ${debug.fps}`, 10, textY); textY += 15
-  ctx.fillText(`Detected: ${debug.detectedMoves}`, 10, textY); textY += 15
+  ctx.fillText(`Off-hand: ${debug.offHandState}`, 10, textY); textY += 15
   
-  for move in MoveType:
-    cooldownRemaining = debug.cooldowns[move]
-    ctx.fillText(`${move}: ${cooldownRemaining}ms`, 10, textY)
+  FOR spell IN debug.matchScores:
+    ctx.fillText(`${spell}: ${debug.matchScores[spell].toFixed(2)}`, 10, textY)
     textY += 15
-  
-  # Draw baseline reference lines
-  drawLine(baseline.leftShoulder, baseline.rightShoulder, '#ff0')
-  drawCircle(baseline.centerPosition.x, baseline.centerPosition.y, 5, '#ff0')
-```
-
-**Screen Shake:**
-```
-function applyScreenShake(intensity, duration):
-  shakeOffset.x = random(-intensity, intensity)
-  shakeOffset.y = random(-intensity, intensity)
-  
-  ctx.translate(shakeOffset.x, shakeOffset.y)
-  
-  # Decay shake over duration
-  intensity *= 0.9
-  if duration <= 0:
-    shakeOffset = {x: 0, y: 0}
 ```
 
 **Dependencies:**
 - HTML5 Canvas API
-- Game_Engine (consumes game state)
-- Pose_Detector (consumes landmarks for debug overlay)
+- Game_Engine (consumes game state in Stage 2)
+- Stroke_Capture (consumes wand trail and off-hand state in Stage 1)
 
 **Error Handling:**
 - Canvas context loss → Attempt to restore, fall back to error message
-- Invalid body part positions → Skip drawing that part, log warning
-- Text rendering overflow → Truncate or wrap text
+- Invalid positions → Skip drawing that element, log warning
 
-### Audio_Manager
+### Audio_Manager (Stage 2 and 3)
 
-**Responsibility:** Play sound effects using Web Audio API.
+**Responsibility:** Generate procedural sound effects using Web Audio API.
 
 **Interface:**
 ```typescript
 interface AudioManager {
-  // Initialize Web Audio context
   initialize(): Promise<void>;
-  
-  // Load sound effect files
-  loadSounds(soundUrls: { [key: string]: string }): Promise<void>;
-  
-  // Play sound effect
-  playSound(soundName: string, volume?: number): void;
-  
-  // Stop all sounds
+  playSpellCast(spell: SpellType): void;
+  playSpellHit(spell: SpellType): void;
+  playFizzle(): void;
+  playKnockout(): void;
+  playRoundEnd(): void;
+  playAmbientDrone(): void;
   stopAll(): void;
-  
-  // Set master volume
   setVolume(volume: number): void;
 }
 ```
 
-**Key Methods:**
+**Key Methods (Stage 2/3):**
 
-- `initialize()`: Creates AudioContext, sets up master gain node
-- `loadSounds()`: Fetches audio files, decodes to audio buffers, stores in cache
-- `playSound()`: Creates buffer source node, connects to master gain, plays immediately
+**Procedural Sound Synthesis:**
+```
+function playSpellCast(spell):
+  oscillator = audioContext.createOscillator()
+  gainNode = audioContext.createGain()
+  
+  SWITCH spell:
+    CASE SHIELD:
+      oscillator.type = 'sine'
+      oscillator.frequency.setValueAtTime(440, audioContext.currentTime)
+      oscillator.frequency.exponentialRampToValueAtTime(880, audioContext.currentTime + 0.2)
+      gainNode.gain.setValueAtTime(0.3, audioContext.currentTime)
+      gainNode.gain.exponentialRampToValueAtTime(0.01, audioContext.currentTime + 0.2)
+    
+    CASE LIGHTNING:
+      oscillator.type = 'sawtooth'
+      oscillator.frequency.setValueAtTime(200, audioContext.currentTime)
+      gainNode.gain.setValueAtTime(0.5, audioContext.currentTime)
+      gainNode.gain.exponentialRampToValueAtTime(0.01, audioContext.currentTime + 0.1)
+    
+    CASE FIREBALL:
+      oscillator.type = 'triangle'
+      oscillator.frequency.setValueAtTime(150, audioContext.currentTime)
+      oscillator.frequency.exponentialRampToValueAtTime(50, audioContext.currentTime + 0.3)
+      gainNode.gain.setValueAtTime(0.4, audioContext.currentTime)
+      gainNode.gain.exponentialRampToValueAtTime(0.01, audioContext.currentTime + 0.3)
+    
+    CASE FROST:
+      oscillator.type = 'sine'
+      oscillator.frequency.setValueAtTime(800, audioContext.currentTime)
+      oscillator.frequency.exponentialRampToValueAtTime(200, audioContext.currentTime + 0.4)
+      gainNode.gain.setValueAtTime(0.3, audioContext.currentTime)
+      gainNode.gain.exponentialRampToValueAtTime(0.01, audioContext.currentTime + 0.4)
+  
+  oscillator.connect(gainNode)
+  gainNode.connect(audioContext.destination)
+  oscillator.start()
+  oscillator.stop(audioContext.currentTime + 0.5)
+```
 
 **Dependencies:**
 - Web Audio API (native browser)
-- Audio files (sourced from free libraries like freesound.org)
 
 **Error Handling:**
-- Audio context suspended (mobile autoplay policy) → Resume on first user interaction
-- Sound file load failure → Silently fail (game continues without audio)
-- Decode error → Log warning, skip that sound
+- Audio context suspended (mobile autoplay) → Resume on first user interaction
+- Playback failure → Silently fail (game continues without audio)
 
 ## Data Models
 
@@ -1038,886 +1079,206 @@ interface AudioManager {
 
 ```typescript
 interface Landmarks {
-  points: Landmark[];    // Array of 33 landmarks from MediaPipe
-  timestamp: number;     // Frame timestamp
+  points: Landmark[];
+  timestamp: number;
 }
 
 interface Landmark {
-  x: number;            // Normalized 0-1 (0=left edge, 1=right edge)
-  y: number;            // Normalized 0-1 (0=top edge, 1=bottom edge)
-  z: number;            // Depth estimate (negative=toward camera)
-  visibility: number;   // Confidence 0-1
+  x: number;            // Normalized 0-1
+  y: number;            // Normalized 0-1
+  z: number;            // Depth estimate
+  visibility: number;   // 0-1 confidence
 }
 
-// Key landmark indices (MediaPipe Pose)
+// MediaPipe Pose landmark indices
 const LANDMARK_INDICES = {
   NOSE: 0,
-  LEFT_EYE: 2,
-  RIGHT_EYE: 5,
-  LEFT_EAR: 7,
-  RIGHT_EAR: 8,
   LEFT_SHOULDER: 11,
   RIGHT_SHOULDER: 12,
   LEFT_ELBOW: 13,
   RIGHT_ELBOW: 14,
   LEFT_WRIST: 15,
   RIGHT_WRIST: 16,
-  LEFT_HIP: 23,
-  RIGHT_HIP: 24,
 };
 ```
 
-### Fighter State
+### Spell Template Data
 
 ```typescript
-interface FighterState {
-  // Vital stats
-  health: number;            // 0-100
-  stamina: number;           // 0-100
-  
-  // Position and movement
-  position: {
-    x: number;               // Arena x-coordinate
-    y: number;               // Arena y-coordinate (ground level)
-    depth: number;           // Z-depth for 2.5D positioning
-  };
-  
-  velocity: {
-    x: number;               // Horizontal speed
-    y: number;               // Vertical speed (for knockback)
-  };
-  
-  // Animation and state
-  currentMove: MoveType;
-  animationState: AnimationState;
-  animationFrame: number;    // Current frame in animation
-  
-  // Combat status
-  isBlocking: boolean;
-  isKnockedOut: boolean;
-  isStunned: boolean;
-  stunDuration: number;      // Milliseconds remaining
-  
-  // Physics body reference
-  physicsBody: FighterBody;
+interface SpellTemplate {
+  type: SpellType;
+  points: { x: number; y: number }[];  // Normalized to unit square
 }
 
-enum AnimationState {
-  IDLE = 'idle',
-  JAB = 'jab',
-  POWER_PUNCH = 'power_punch',
-  DUCK = 'duck',
-  BLOCK = 'block',
-  CHARGE_PREP = 'charge_prep',
-  CHARGE_RELEASE = 'charge_release',
-  HIT_REACT = 'hit_react',
-  KNOCKED_DOWN = 'knocked_down',
-}
-```
-
-### Game State
-
-```typescript
-interface GameState {
-  // Fighters
-  playerFighter: FighterState;
-  aiFighter: FighterState;
-  
-  // Round management
-  roundNumber: number;
-  roundTimer: number;        // Milliseconds remaining
-  roundDuration: number;     // Total round length (ms)
-  matchState: MatchState;
-  
-  // Scoring
-  playerScore: number;
-  aiScore: number;
-  playerCombo: number;       // Current combo count
-  aiCombo: number;
-  playerMaxCombo: number;    // Best combo this match
-  aiMaxCombo: number;
-  
-  // Match history
-  roundsWon: {
-    player: number;
-    ai: number;
-  };
-  
-  // Configuration
-  config: GameConfig;
-}
-
-interface GameConfig {
-  roundDuration: number;     // e.g., 90000 (90 seconds)
-  roundsToWin: number;       // e.g., 2 (best of 3)
-  
-  // Damage values
-  jabDamage: number;
-  powerPunchDamage: number;
-  chargeDamage: number;
-  blockReduction: number;    // e.g., 0.3 (70% reduction)
-  
-  // Stamina values
-  staminaGainPerHit: number;
-  staminaCostJab: number;
-  staminaCostPowerPunch: number;
-  staminaCostDuck: number;
-  staminaCostBlockPerSec: number;
-  staminaCostCharge: number;
-  staminaRegenRate: number;  // Per second
-  
-  // Scoring
-  pointsJabHit: number;
-  pointsPowerPunchHit: number;
-  pointsChargeHit: number;
-  comboMultiplier: number;   // e.g., 0.2 (+20% per combo)
-  roundWinBonus: number;
-}
-```
-
-### Baseline Calibration Data
-
-```typescript
-interface BaselineData {
-  // Center reference point (average of shoulders)
-  centerPosition: {
-    x: number;
-    y: number;
-  };
-  
-  // Body measurements
-  shoulderWidth: number;        // Distance between shoulders
-  headHeight: number;           // Vertical position of head
-  armLength: number;            // Average reach
-  
-  // Baseline joint positions (for delta calculations)
-  leftWristBaseline: {
-    x: number;
-    y: number;
-    z: number;
-  };
-  
-  rightWristBaseline: {
-    x: number;
-    y: number;
-    z: number;
-  };
-  
-  shoulderHeightBaseline: number;
-  
-  // Calibration quality metrics
-  frameCount: number;           // Number of frames averaged
-  confidence: number;           // 0-1 quality score
-  timestamp: number;            // When calibration completed
-}
+// Default templates (shipped with game)
+const DEFAULT_TEMPLATES: SpellTemplate[] = [
+  {
+    type: SpellType.SHIELD,
+    points: generateCircle(64)  // 64 points forming a circle
+  },
+  {
+    type: SpellType.LIGHTNING,
+    points: generateZigzag(64)  // 64 points forming 3-4 peaks
+  },
+  {
+    type: SpellType.FIREBALL,
+    points: generateStraightLine(64)  // 64 points horizontal line
+  },
+  {
+    type: SpellType.FROST,
+    points: generateVShape(64)  // 64 points forming a V
+  }
+];
 ```
 
 ## Correctness Properties
 
-*A property is a characteristic or behavior that should hold true across all valid executions of a system—essentially, a formal statement about what the system should do. Properties serve as the bridge between human-readable specifications and machine-verifiable correctness guarantees.*
+### Property 1: Stroke Normalization Invariance
 
-### Property 1: Joint Distance Non-Negativity
+*For any* two strokes representing the same shape but at different positions, scales, or rotations, the $1 algorithm SHALL produce the same normalized result (within floating-point tolerance).
 
-*For any* two joint landmarks from the same frame, the Euclidean distance between them SHALL be non-negative.
+**Validates: Requirements 22.2, 22.3, 22.4**
 
-**Validates: Requirements 21.1**
+### Property 2: Mana Bounds Maintenance
 
-### Property 2: Joint Angle Validity
+*For any* sequence of spell casts and mana regeneration events, mana SHALL remain within the range [0, 100] at all times.
 
-*For any* three joint landmarks forming an angle (e.g., shoulder-elbow-wrist), the calculated angle SHALL be within the range [0°, 180°] for external angles.
+**Validates: Requirements 24.1, 24.3**
 
-**Validates: Requirements 21.2**
+### Property 3: Spell Counter Consistency
 
-### Property 3: Baseline-Relative Position Directionality
+*For any* spell type, the spell SHALL NOT counter itself according to the counter table.
 
-*For any* joint landmark, when moved in a direction relative to baseline, the computed delta vector SHALL point in the same direction as the movement.
+**Validates: Requirements 24.2**
 
-**Validates: Requirements 21.3**
+### Property 4: Off-Hand State Transitions
 
-### Property 4: Stamina Bounds Maintenance
+*For any* sequence of off-hand position changes, the state machine SHALL transition through states in a valid order (IDLE → READY_ARMING → READY_ARMED → CAST/CANCEL → IDLE).
 
-*For any* sequence of moves, hits, and regeneration events, the stamina value SHALL remain within the range [0, 100] at all times.
+**Validates: Requirements 4.1, 4.2, 6.1, 7.1**
 
-**Validates: Requirements 22.1, 22.2, 22.3, 22.6**
+### Property 5: Template Distinctiveness
 
-### Property 5: Charge Attack Gating
+*For any* pair of default spell templates, the $1 distance between them SHALL exceed the rejection threshold (templates are distinguishable).
 
-*For any* charge attack gesture, the Move_Recognizer SHALL detect a charge attack if and only if stamina is greater than or equal to the charge stamina threshold.
-
-**Validates: Requirements 22.4, 22.5**
-
-### Property 6: Cooldown Enforcement
-
-*For any* move type with a cooldown, once detected, the Move_Recognizer SHALL NOT detect another instance of that move type until the cooldown period has elapsed.
-
-**Validates: Requirements 4.2, 4.3, 5.2, 5.3, 6.3, 6.4, 8.4, 8.5, 20.6**
-
-### Property 7: Smoothing Increases Stability
-
-*For any* sequence of raw landmark positions with jitter, applying smoothing SHALL produce output positions with lower variance than the input (metamorphic property).
-
-**Validates: Requirements 3.2**
-
-### Property 8: Damage Monotonicity
-
-*For any* two move types A and B where A has higher base damage than B, a successful unblocked hit with A SHALL reduce defender health by at least as much as an unblocked hit with B.
-
-**Validates: Requirements 15.4, 15.5**
-
-### Property 9: Block Reduces Damage
-
-*For any* incoming attack, if the defender is blocking, the damage received SHALL be less than the damage that would be received without blocking.
-
-**Validates: Requirements 15.6**
-
-### Property 10: Health Monotonicity
-
-*For any* fighter, health SHALL never increase during a round (only decrease from damage or remain constant).
-
-**Validates: Requirements 11.1, 11.7**
-
-## Error Handling
-
-### Webcam Access Denial
-
-**Scenario:** User denies camera permission or camera is unavailable.
-
-**Handling:**
-1. Display clear error message: "Camera access is required to play. Please allow camera access and reload."
-2. Show retry button that re-requests permission
-3. Provide fallback option: "Test with Keyboard Controls" (development mode only)
-
-**Recovery:** Require page reload after permission granted due to MediaPipe initialization requirements.
-
-### MediaPipe Initialization Failure
-
-**Scenario:** MediaPipe library fails to load or initialize (network error, incompatible browser).
-
-**Handling:**
-1. Log error details to console
-2. Display user-friendly error: "Failed to load pose detection. Please check your internet connection and try again."
-3. In development: Offer mock data mode that generates synthetic landmarks for testing
-
-**Recovery:** Retry initialization with exponential backoff (1s, 2s, 4s delays).
-
-### Low Visibility Frame Filtering
-
-**Scenario:** Camera quality degrades or user moves out of frame, causing landmark visibility to drop below threshold.
-
-**Handling:**
-1. Skip move detection for frames where key joints have visibility < 0.5
-2. Continue using last known good smoothed positions for rendering
-3. If low visibility persists > 2 seconds:
-   - Pause game if in active round
-   - Display warning: "Can't see you clearly. Please adjust lighting or camera position."
-   - Show silhouette outline indicating where user should be positioned
-
-**Recovery:** Resume automatically when visibility returns above threshold.
-
-### Missing Landmark During Calibration
-
-**Scenario:** User is not in proper guard position or key landmarks are occluded during calibration.
-
-**Handling:**
-1. Display real-time feedback on which joints are missing/low visibility
-2. Show visual guide with stick figure demonstrating correct guard position
-3. Exclude frames with missing landmarks from baseline averaging
-4. If < 15 frames collected after 2 seconds:
-   - Extend calibration period to 3 seconds
-   - Display encouraging message: "Hold steady... almost there!"
-5. If still insufficient after 3 seconds:
-   - Abort calibration
-   - Display error: "Calibration failed. Make sure your upper body is fully visible."
-   - Provide retry button
-
-**Recovery:** Allow unlimited calibration retries.
-
-### Tracking Loss During Moves
-
-**Scenario:** Rapid movements cause pose estimation to fail mid-move.
-
-**Handling:**
-1. Detect tracking loss: no valid landmarks for 3+ consecutive frames
-2. Immediately stop move detection
-3. Clear active move state (no partial moves credited)
-4. Continue attempting to re-acquire pose
-5. If tracking lost > 1 second during active round:
-   - Pause round timer
-   - Display: "Lost tracking. Get back in position."
-6. Resume when tracking restored for 5 consecutive frames
-
-**Recovery:** Automatic resume on tracking restoration; no calibration reset required unless tracking lost > 10 seconds.
-
-### Physics Body Position NaN
-
-**Scenario:** Matter.js simulation produces invalid positions (NaN/Infinity) due to extreme forces.
-
-**Handling:**
-1. Detect invalid positions in Physics_Engine update loop
-2. Log error with physics state snapshot
-3. Reset affected fighter to safe position:
-   - Player: left side, standing pose
-   - AI: right side, standing pose
-4. Zero out velocities and angular momentum
-5. Briefly pause physics simulation (100ms) to stabilize
-
-**Recovery:** Automatic recovery with position reset; no game state loss.
-
-### Audio Context Suspended (Mobile Autoplay Policy)
-
-**Scenario:** Browser blocks audio playback due to autoplay restrictions.
-
-**Handling:**
-1. Detect suspended audio context on initialization
-2. Register touch/click listener on entire document
-3. On first user interaction:
-   - Resume audio context
-   - Play silent buffer to "unlock" audio
-4. Silently continue if audio remains unavailable (game playable without sound)
-
-**Recovery:** Automatic on first user interaction; graceful degradation if audio unavailable.
-
-### Frame Rate Drop Below Threshold
-
-**Scenario:** Device cannot maintain target 20-30 fps.
-
-**Handling:**
-1. Monitor rolling average FPS over 2-second window
-2. If FPS < 15 sustained:
-   - Reduce physics solver iterations: 6 → 4 → 2
-   - Disable non-critical visual effects (particles, glow)
-   - Reduce MediaPipe model complexity (lite → ultra-lite if available)
-3. Display performance warning: "Performance issues detected. Try closing other apps."
-4. Log device info for debugging
-
-**Recovery:** Restore full quality if FPS recovers above 20 for 5+ seconds.
-
-### Arena Boundary Violation
-
-**Scenario:** Fighter position exceeds arena boundaries due to extreme knockback.
-
-**Handling:**
-1. Clamp position to arena bounds + small margin
-2. Apply bounce-back force proportional to boundary violation
-3. If violation exceeds 2x margin (catastrophic physics failure):
-   - Perform full physics reset for that fighter
-   - Reset to safe position with zero velocity
-
-**Recovery:** Automatic clamping and physics correction.
+**Validates: Requirements 23.5**
 
 ## Testing Strategy
 
-### Unit Testing Approach
+### Unit Testing
 
-Unit tests focus on specific examples, edge cases, and integration points between components:
+**Gesture Recognition:**
+- Test $1 algorithm with synthetic strokes (circle, zigzag, line, V)
+- Verify rotation invariance (same shape at 0°, 45°, 90°, 180°)
+- Verify scale invariance (same shape at 50%, 100%, 200% size)
+- Verify position invariance (same shape at different canvas locations)
+- Test rejection threshold with non-matching strokes
 
-**Move Detector Unit Tests** (Requirements 20.1-20.7):
-- Test each move type (jab, power punch, duck, block, charge) with recorded landmark sequences
-- Verify threshold enforcement: moves trigger only when delta exceeds threshold
-- Verify cooldown behavior: moves cannot re-trigger during cooldown period
-- Test edge cases: incomplete gestures, conflicting moves, missing landmarks
+**Off-Hand State Machine:**
+- Test state transitions with synthetic landmark sequences
+- Verify arming delay timing
+- Verify hysteresis prevents flicker
+- Test cancel gesture detection
 
-**Calibrator Unit Tests**:
-- Test guard position detection with valid and invalid poses
-- Verify baseline averaging with synthetic landmark data
-- Test incomplete calibration rejection
+**Stroke Capture:**
+- Test minimum length rejection
+- Test minimum bounding box rejection
+- Test trail fade timing
 
-**Joint Geometry Unit Tests**:
-- Test distance calculation between known joint positions
-- Test angle calculation for specific joint triplets
-- Verify normalization of screen coordinates to world coordinates
+### Property-Based Testing
 
-**Stamina Unit Tests**:
-- Test stamina increase after landing hits (various move types)
-- Test stamina decrease after performing moves
-- Test passive regeneration over time
-- Test charge attack blocking when stamina below threshold
-- Verify stamina clamping to [0, 100] range
-
-**Damage Calculation Unit Tests**:
-- Test base damage amounts for each move type
-- Test damage reduction when blocking
-- Verify damage monotonicity: charge > power > jab
-- Test health clamping to [0, 100] range
-
-**Scoring Unit Tests**:
-- Test point awarding for successful hits
-- Test combo multiplier calculation
-- Test round win bonus application
-
-**Integration Tests**:
-- End-to-end calibration → move detection flow
-- Full round simulation: moves → damage → health → round end
-- AI behavior responding to game state changes
-
-### Property-Based Testing Approach
-
-**Testing Library:** fast-check (JavaScript property-based testing library)
-
-**Property Test Configuration:**
-- Minimum 100 iterations per property test
-- Each test tagged with reference to design property
-
-**Property 1: Joint Distance Non-Negativity**
+**fast-check generators:**
 ```typescript
-// Feature: possessed-brawl, Property 1: Joint Distance Non-Negativity
-test('joint distances are always non-negative', () => {
-  fc.assert(
-    fc.property(
-      arbitraryLandmarkPair(),
-      (pair) => {
-        const distance = euclideanDistance(pair.landmark1, pair.landmark2);
-        return distance >= 0;
-      }
-    ),
-    { numRuns: 100 }
+// Arbitrary stroke (random points)
+function arbitraryStroke() {
+  return fc.array(
+    fc.record({ x: fc.double(0, 1), y: fc.double(0, 1) }),
+    { minLength: 5, maxLength: 100 }
   );
-});
-```
-
-**Property 2: Joint Angle Validity**
-```typescript
-// Feature: possessed-brawl, Property 2: Joint Angle Validity
-test('joint angles remain in valid range', () => {
-  fc.assert(
-    fc.property(
-      arbitraryJointTriplet(),
-      (triplet) => {
-        const angle = calculateAngle(triplet.joint1, triplet.joint2, triplet.joint3);
-        return angle >= 0 && angle <= 180;
-      }
-    ),
-    { numRuns: 100 }
-  );
-});
-```
-
-**Property 3: Baseline-Relative Position Directionality**
-```typescript
-// Feature: possessed-brawl, Property 3: Baseline-Relative Position Directionality
-test('delta vectors preserve movement direction', () => {
-  fc.assert(
-    fc.property(
-      arbitraryBaselineAndMovement(),
-      (data) => {
-        const delta = computeDelta(data.currentPos, data.baseline);
-        const dotProduct = delta.x * data.movementDir.x + delta.y * data.movementDir.y;
-        return dotProduct >= 0; // Same direction
-      }
-    ),
-    { numRuns: 100 }
-  );
-});
-```
-
-**Property 4: Stamina Bounds Maintenance**
-```typescript
-// Feature: possessed-brawl, Property 4: Stamina Bounds Maintenance
-test('stamina remains in [0, 100] range', () => {
-  fc.assert(
-    fc.property(
-      arbitraryGameEventSequence(),
-      (events) => {
-        const fighter = createFighter();
-        for (const event of events) {
-          applyEvent(fighter, event);
-        }
-        return fighter.stamina >= 0 && fighter.stamina <= 100;
-      }
-    ),
-    { numRuns: 100 }
-  );
-});
-```
-
-**Property 5: Charge Attack Gating**
-```typescript
-// Feature: possessed-brawl, Property 5: Charge Attack Gating
-test('charge attack only detected when stamina sufficient', () => {
-  fc.assert(
-    fc.property(
-      arbitraryChargeGestureAndStamina(),
-      (data) => {
-        const moveDetected = moveRecognizer.detectMoves(
-          data.landmarks,
-          data.baseline,
-          data.stamina
-        ).includes(MoveType.CHARGE);
-        
-        if (data.stamina >= CHARGE_STAMINA_THRESHOLD) {
-          // Should detect if gesture valid
-          return moveDetected === data.gestureIsValid;
-        } else {
-          // Should never detect regardless of gesture
-          return !moveDetected;
-        }
-      }
-    ),
-    { numRuns: 100 }
-  );
-});
-```
-
-**Property 6: Cooldown Enforcement**
-```typescript
-// Feature: possessed-brawl, Property 6: Cooldown Enforcement
-test('moves respect cooldown periods', () => {
-  fc.assert(
-    fc.property(
-      arbitraryMoveTypeAndTimingSequence(),
-      (data) => {
-        const detector = createMoveRecognizer();
-        let lastDetectionTime = -Infinity;
-        
-        for (const event of data.events) {
-          detector.updateCooldowns(event.deltaTime);
-          const moves = detector.detectMoves(event.landmarks, data.baseline);
-          
-          if (moves.includes(data.targetMoveType)) {
-            const timeSinceLastDetection = event.timestamp - lastDetectionTime;
-            // Must respect cooldown
-            if (lastDetectionTime !== -Infinity) {
-              expect(timeSinceLastDetection).toBeGreaterThanOrEqual(
-                COOLDOWNS[data.targetMoveType]
-              );
-            }
-            lastDetectionTime = event.timestamp;
-          }
-        }
-        return true;
-      }
-    ),
-    { numRuns: 100 }
-  );
-});
-```
-
-**Property 7: Smoothing Increases Stability**
-```typescript
-// Feature: possessed-brawl, Property 7: Smoothing Increases Stability
-test('smoothing reduces landmark variance', () => {
-  fc.assert(
-    fc.property(
-      arbitraryJitteryLandmarkSequence(),
-      (sequence) => {
-        const rawVariance = calculateVariance(sequence);
-        const smoothed = applySmoothingSequence(sequence, ALPHA);
-        const smoothedVariance = calculateVariance(smoothed);
-        
-        return smoothedVariance < rawVariance;
-      }
-    ),
-    { numRuns: 100 }
-  );
-});
-```
-
-**Property 8: Damage Monotonicity**
-```typescript
-// Feature: possessed-brawl, Property 8: Damage Monotonicity
-test('higher tier moves deal more damage', () => {
-  fc.assert(
-    fc.property(
-      arbitraryFighterState(),
-      (defender) => {
-        const jabDamage = calculateDamage(MoveType.JAB, false, defender);
-        const powerDamage = calculateDamage(MoveType.POWER_PUNCH, false, defender);
-        const chargeDamage = calculateDamage(MoveType.CHARGE, false, defender);
-        
-        return chargeDamage >= powerDamage && powerDamage >= jabDamage;
-      }
-    ),
-    { numRuns: 100 }
-  );
-});
-```
-
-**Property 9: Block Reduces Damage**
-```typescript
-// Feature: possessed-brawl, Property 9: Block Reduces Damage
-test('blocking reduces incoming damage', () => {
-  fc.assert(
-    fc.property(
-      arbitraryMoveTypeAndDefender(),
-      (data) => {
-        const unblockedDamage = calculateDamage(data.moveType, false, data.defender);
-        const blockedDamage = calculateDamage(data.moveType, true, data.defender);
-        
-        return blockedDamage < unblockedDamage;
-      }
-    ),
-    { numRuns: 100 }
-  );
-});
-```
-
-**Property 10: Health Monotonicity**
-```typescript
-// Feature: possessed-brawl, Property 10: Health Monotonicity
-test('health never increases during round', () => {
-  fc.assert(
-    fc.property(
-      arbitraryCombatEventSequence(),
-      (events) => {
-        const fighter = createFighter();
-        const healthHistory = [fighter.health];
-        
-        for (const event of events) {
-          applyEvent(fighter, event);
-          healthHistory.push(fighter.health);
-        }
-        
-        // Check monotonicity: each health value <= previous
-        for (let i = 1; i < healthHistory.length; i++) {
-          if (healthHistory[i] > healthHistory[i - 1]) {
-            return false;
-          }
-        }
-        return true;
-      }
-    ),
-    { numRuns: 100 }
-  );
-});
-```
-
-**Arbitrary Generators:**
-
-The property tests rely on custom generators that produce valid test inputs:
-
-```typescript
-// Generate random landmark with valid ranges
-function arbitraryLandmark() {
-  return fc.record({
-    x: fc.double({ min: 0, max: 1 }),
-    y: fc.double({ min: 0, max: 1 }),
-    z: fc.double({ min: -1, max: 1 }),
-    visibility: fc.double({ min: 0, max: 1 })
-  });
 }
 
-// Generate pair of landmarks
-function arbitraryLandmarkPair() {
-  return fc.record({
-    landmark1: arbitraryLandmark(),
-    landmark2: arbitraryLandmark()
-  });
-}
-
-// Generate triplet for angle calculations
-function arbitraryJointTriplet() {
-  return fc.record({
-    joint1: arbitraryLandmark(),
-    joint2: arbitraryLandmark(),
-    joint3: arbitraryLandmark()
-  });
-}
-
-// Generate sequence of game events (hits, moves, time passing)
-function arbitraryGameEventSequence() {
+// Arbitrary mana event sequence
+function arbitraryManaEvents() {
   return fc.array(
     fc.oneof(
-      fc.record({ type: fc.constant('hit'), moveType: arbitraryMoveType() }),
-      fc.record({ type: fc.constant('move'), moveType: arbitraryMoveType() }),
-      fc.record({ type: fc.constant('idle'), duration: fc.integer({ min: 0, max: 5000 }) })
+      fc.record({ type: fc.constant('cast'), cost: fc.integer(10, 50) }),
+      fc.record({ type: fc.constant('regen'), duration: fc.integer(100, 5000) })
     ),
     { minLength: 1, maxLength: 50 }
   );
 }
-
-// Generate jittery landmark sequence (for smoothing test)
-function arbitraryJitteryLandmarkSequence() {
-  return fc.array(arbitraryLandmark(), { minLength: 10, maxLength: 100 })
-    .map(landmarks => 
-      landmarks.map(lm => ({
-        ...lm,
-        x: lm.x + fc.sample(fc.double({ min: -0.02, max: 0.02 }), 1)[0],
-        y: lm.y + fc.sample(fc.double({ min: -0.02, max: 0.02 }), 1)[0]
-      }))
-    );
-}
 ```
+
+**Property tests:**
+- **Property 1**: Stroke normalization invariance
+- **Property 2**: Mana bounds maintenance
+- **Property 3**: Spell counter consistency (no spell beats itself)
+- **Property 4**: Off-hand state transitions validity
+- **Property 5**: Template distinctiveness
 
 ### Manual Testing
 
-**Stage 1 Manual Test Cases:**
-1. Camera permission flow on mobile Safari and Chrome
-2. Calibration with various body sizes and camera angles
-3. Move detection accuracy in different lighting conditions
-4. Debug overlay readability on mobile screen sizes
-5. Threshold tuning for different player heights
-6. Landscape orientation enforcement
-7. Performance profiling at target frame rate
+**Stage 1 checkpoint:**
+1. Test wand hand selection (left/right)
+2. Test calibration with various body sizes
+3. Cast each spell 5 times, verify recognition accuracy
+4. Test trained templates vs default templates
+5. Verify placeholder effects display correctly
+6. Test debug overlay completeness
 
-**Stage 2 Manual Test Cases:**
-1. Combat feel and hit detection responsiveness
-2. AI difficulty progression feeling fair
-3. Stamina management and charge attack timing
-4. Health bar visibility and clarity
-5. Round end conditions and scoring accuracy
-6. Screen shake and hit-stop impact
-
-**Stage 3 Manual Test Cases:**
-1. Audio synchronization with hits
-2. Visual polish and particle effects
-3. Overall game flow and pacing
-4. Taunt text readability and timing
-
-### Testing Tools and Infrastructure
-
-- **Unit Testing:** Vitest or Jest
-- **Property Testing:** fast-check
-- **Browser Testing:** Playwright for cross-browser compatibility
-- **Performance Testing:** Chrome DevTools Performance panel, Lighthouse
-- **Coverage:** Aim for 80%+ coverage on business logic (move detection, game engine, scoring)
+**Stage 2 (after checkpoint):**
+1. Test wizard duel flow (health, mana, round timer)
+2. Test AI difficulty adaptation
+3. Test spell counter mechanics
+4. Test round end conditions
 
 ## Stage 1 Implementation Focus
 
-Stage 1 delivers a functional pose input system with visual feedback, stopping before full game implementation to validate the core mechanic.
+Stage 1 delivers a functional spell casting system with recognition checkpoint, stopping before full duel logic to validate the core mechanic.
 
 ### Stage 1 Deliverables
 
 **Components Implemented:**
-- Pose_Detector (full implementation)
-- Calibrator (full implementation)
-- Move_Recognizer (full implementation with all 5 move types)
-- Renderer (debug overlay only)
+- Pose_Detector (full)
+- Calibrator (with wand hand selection)
+- Stroke_Capture (full)
+- Gesture_Recognizer (full, with training UI)
+- Renderer (wand trail, rune glow, spell result overlay, placeholder effects, debug overlay)
 
 **Components Deferred to Stage 2:**
 - Game_Engine
-- Physics_Engine
-- AI_Controller
-- Audio_Manager
-- Renderer (game graphics)
+- Spell_System
+- AI_Wizard
+- Audio_Manager (defer to Stage 3)
 
 **Stage 1 Features:**
-1. Webcam initialization with permission handling
-2. MediaPipe Pose integration and landmark extraction
-3. Joint position smoothing with EMA filter (alpha=0.3)
-4. Calibration flow with visual guide
-5. Move detection for all 5 move types (jab, power punch, duck, block, charge)
-6. Debug overlay showing:
-   - Live pose landmarks
-   - Detected move names
-   - Raw joint positions
-   - Threshold values
-   - Cooldown timers
-   - Stamina meter (simulated, not yet game-integrated)
-
-**Stage 1 User Experience:**
-1. User loads page in mobile browser (landscape)
-2. Camera permission prompt appears
-3. Calibration screen shows with instructions and stick figure guide
-4. User assumes guard position
-5. System detects guard position and shows confirmation
-6. 1-second calibration period records baseline
-7. Debug overlay appears showing live pose and move detection
-8. User performs gestures and sees moves detected in real-time
-9. Threshold sliders allow tuning sensitivity
+1. Webcam initialization and permission handling
+2. MediaPipe Pose integration
+3. Joint smoothing (EMA, alpha=0.3)
+4. Wand hand selection screen
+5. Calibration with baseline recording
+6. Off-hand ready gesture detection (raise, hold, lower, cancel)
+7. Wand trail capture and display
+8. $1 Unistroke Recognizer implementation
+9. Four spell templates (circle, zigzag, line, V)
+10. Default templates + training UI ("Train my spells")
+11. Spell result display (name, confidence, shape overlay)
+12. Placeholder spell effects (shield glow, lightning flash, fireball, frost wave)
+13. Debug overlay (landmarks, wand trail, off-hand state, match scores)
 
 **Stage 1 Success Criteria:**
 - Pose detection maintains 20-30 fps on target mobile devices
-- Move detection feels responsive (<200ms latency from gesture to detection)
-- False positive rate <5% (moves don't trigger unintentionally)
-- False negative rate <10% (intentional moves are detected)
-- User can complete calibration successfully within 3 attempts
-- Debug overlay clearly shows all relevant information
+- Spell recognition feels responsive (<300ms from cast gesture to result)
+- Recognition accuracy >90% for trained templates, >80% for defaults
+- User can complete calibration within 3 attempts
+- Placeholder effects display correctly for each spell
+- Debug overlay shows all relevant information
 
-**Stage 1 Testing:**
-- Unit tests for move detection algorithms (Requirements 20.1-20.7)
-- Property tests for joint geometry (Properties 1-3, 7)
-- Property tests for stamina bounds (Properties 4-5)
-- Property test for cooldown enforcement (Property 6)
-- Manual testing on target mobile devices
-
-### Stage 1 to Stage 2 Transition
-
-After Stage 1 completion, implementation pauses for user review and approval. The user will:
-1. Test pose detection and move recognition on their mobile device
-2. Verify move detection accuracy and responsiveness
-3. Tune thresholds if needed
-4. Approve progression to Stage 2 (game engine and combat)
-
-This gate ensures the core mechanic is solid before investing in game logic, physics, and visual polish.
-
-## Additional Design Decisions and Rationales
-
-### Why MediaPipe Pose Over Alternatives?
-
-- **TensorFlow.js PoseNet**: Less accurate, older model, limited to 17 landmarks
-- **BlazePose (MediaPipe Pose)**: 33 landmarks, better accuracy, optimized for mobile, active Google support
-- **Custom ML Model**: Would require training data, expertise, and time—impractical for hackathon timeline
-
-**Decision:** Use MediaPipe Pose for proven mobile performance and rich landmark data.
-
-### Why Matter.js Over Planck.js?
-
-- **Planck.js**: Faithful Box2D port, more complex API, TypeScript focus
-- **Matter.js**: Native JavaScript, simpler API, broader adoption (17.8k stars vs 4.8k), better documentation
-
-**Decision:** Use Matter.js for ease of integration and community support. The simpler API will accelerate Stage 2 development.
-
-### Why EMA with Alpha=0.3?
-
-- Alpha too low (e.g., 0.1): Over-smoothed, laggy response, frustrating gameplay
-- Alpha too high (e.g., 0.7): Under-smoothed, jittery, false positives
-- Alpha=0.3: Balances responsiveness with noise reduction based on similar real-time tracking applications
-
-**Decision:** Default alpha=0.3, but expose as tunable parameter for Stage 1 testing.
-
-### Why Stop After Stage 1?
-
-- **Risk Mitigation**: Pose detection is the highest-risk component (hardware variance, lighting, performance). Validating it first reduces wasted effort if it doesn't work.
-- **Threshold Tuning**: Real-world testing will reveal necessary threshold adjustments that impact game design.
-- **User Feedback**: Early validation ensures the control scheme feels good before building complex game systems on top of it.
-
-**Decision:** Implement in stages with explicit user approval gates to de-risk the project.
-
-### Why Stick Figures Instead of Sprites?
-
-- **Performance**: Rendering simple lines and circles is much faster than sprite animation, critical for 20-30 fps target on mobile
-- **Development Speed**: No sprite creation or animation needed for hackathon timeline
-- **Aesthetic**: Stick figures create a minimalist, arcade-style aesthetic that fits the "Kiroween hackathon" vibe
-
-**Decision:** Use stick figures for Stage 2, potentially upgrade to simple sprites in Stage 3 if performance budget allows.
-
-### Why Web Audio API Instead of HTML5 Audio?
-
-- **HTML5 Audio**: Simple but limited, higher latency, no processing capabilities
-- **Web Audio API**: Low latency, precise timing, spatial audio, effects processing, better mobile support
-
-**Decision:** Use Web Audio API for professional-quality audio and low latency hit sounds.
-
-### Why Landscape Orientation?
-
-- **Webcam Coverage**: Landscape orientation captures more horizontal space, allowing players to move arms side-to-side without going out of frame
-- **UI Layout**: More space for side-by-side fighter display with health/stamina bars
-- **Mobile Gaming Norm**: Fighting games traditionally use landscape orientation
-
-**Decision:** Enforce landscape with CSS and viewport meta tags, block portrait mode with user message.
+**Stage 1 Checkpoint Gate:**
+User tests casting all four spells using both default and trained templates, confirms recognition accuracy and responsiveness, approves progression to Stage 2.
 
 ---
 
-**Document Version:** 1.0  
+**Document Version:** 1.0 (Spell Duel Pivot)  
 **Last Updated:** 2025-01-XX  
-**Status:** Draft - Pending Stage 1 Implementation
-
----
-
-## Implementation Preferences
-
-### Documentation Policy
-
-**Do NOT create additional documentation files during task execution:**
-- No task completion summaries (e.g., `TASK-X-COMPLETION.md`)
-- No visual guides or explanatory documents (e.g., `docs/task-X-visual-guide.md`)
-- No .txt or .md files explaining implementation details
-- All documentation is already captured in this design document, requirements.md, and tasks.md
-
-**Keep task summaries minimal:**
-- Brief confirmation of completion (1-2 sentences)
-- No detailed explanations or feature lists
-- All rationale and details are already documented in spec files
-
-These preferences ensure clean repository structure and avoid redundant documentation.
-
+**Status:** Draft - Awaiting Stage 1 Implementation

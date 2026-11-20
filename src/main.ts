@@ -1,7 +1,7 @@
 /**
- * Possessed Brawl - Main Entry Point
+ * Spell Duel - Main Entry Point
  * 
- * Browser-based stick-figure fighting game controlled through webcam pose detection.
+ * Browser-based wizard duel game controlled through webcam pose detection.
  * For the Kiroween 2026 hackathon.
  * 
  * **Validates: Requirements 1.1, 2.1, 4.1, 9.1**
@@ -10,11 +10,9 @@
 import { PoseDetector } from './components/PoseDetector';
 import { Calibrator, CalibrationState } from './components/Calibrator';
 import { CalibrationUI } from './components/CalibrationUI';
-import { MoveRecognizer } from './components/MoveRecognizer';
 import { Renderer } from './components/Renderer';
 import { ThresholdTuningUI } from './components/ThresholdTuningUI';
-import { Landmarks, BaselineData, MoveType } from './types';
-import { ThresholdConfig } from './types/move';
+import { Landmarks, BaselineData, MoveType, DetectedMove } from './types';
 
 /**
  * Application state enumeration
@@ -44,7 +42,7 @@ export class Application {
   private poseDetector: PoseDetector;
   private calibrator: Calibrator;
   private calibrationUI: CalibrationUI;
-  private moveRecognizer: MoveRecognizer | null = null;
+  // private moveRecognizer: MoveRecognizer | null = null; // TODO: Replace with StrokeCapture + GestureRecognizer
   private renderer: Renderer;
   private tuningUI: ThresholdTuningUI | null = null;
   
@@ -110,7 +108,7 @@ export class Application {
     // Set up event handlers
     this.setupEventHandlers();
     
-    console.log('Possessed Brawl - Application initialized');
+    console.log('Spell Duel - Application initialized');
   }
 
   /**
@@ -430,7 +428,7 @@ export class Application {
     }
     
     // Step 3: Move Recognition (if calibrated and active)
-    if (this.state === AppState.ACTIVE && this.baseline && this.moveRecognizer) {
+    if (this.state === AppState.ACTIVE && this.baseline) {
       this.processMoveRecognition(deltaTime);
     }
     
@@ -453,7 +451,7 @@ export class Application {
     this.calibrationUI.setGuardDetected(isGuardDetected);
     
     // Record calibration frame
-    if (calState === CalibrationState.WAITING_FOR_GUARD || 
+    if (calState === CalibrationState.WAITING_FOR_READY_STANCE || 
         calState === CalibrationState.RECORDING) {
       this.calibrator.recordFrame(this.currentLandmarks);
     }
@@ -475,7 +473,7 @@ export class Application {
   /**
    * Handle calibration completion
    * 
-   * Initializes MoveRecognizer and transitions to active state.
+   * Initializes move detection and transitions to active state.
    * 
    * **Validates: Requirements 2.1, 4.1**
    */
@@ -492,23 +490,15 @@ export class Application {
       console.error('Calibration completed but no baseline data available');
       return;
     }
-    
-    // Initialize MoveRecognizer with baseline
-    this.moveRecognizer = new MoveRecognizer();
-    console.log('MoveRecognizer initialized');
-    
-    // Initialize threshold tuning UI
-    this.tuningUI = new ThresholdTuningUI(
-      document.body,
-      (config: ThresholdConfig) => {
-        // Update move recognizer when thresholds change
-        if (this.moveRecognizer) {
-          this.moveRecognizer.setThresholds(config);
-          console.log('Thresholds updated:', config);
-        }
-      }
-    );
-    console.log('Threshold tuning UI initialized (press T to toggle)');
+
+    // TODO Stage 1: Initialize StrokeCapture and GestureRecognizer here
+    // this.strokeCapture = new StrokeCapture();
+    // this.gestureRecognizer = new GestureRecognizer();
+    console.log('Spell casting components will be initialized here');
+
+    // TODO: Initialize threshold tuning UI for spell casting thresholds
+    // this.tuningUI = new ThresholdTuningUI(...);
+    console.log('Threshold tuning UI will be initialized here');
     
     // Transition to active state after a brief delay to show completion message
     setTimeout(() => {
@@ -519,7 +509,7 @@ export class Application {
       this.hideVideoPreview();
       // Transition to active state
       this.state = AppState.ACTIVE;
-      console.log('Application now active - move detection enabled');
+      console.log('Application now active - spell casting enabled');
       
       // Start renderer
       this.renderer.start();
@@ -532,65 +522,24 @@ export class Application {
    * **Validates: Requirements 4.1, 4.2, 4.3**
    */
   private processMoveRecognition(deltaTime: number): void {
-    if (!this.currentLandmarks || !this.baseline || !this.moveRecognizer) return;
+    if (!this.currentLandmarks || !this.baseline) return;
+
+    // TODO Stage 1: Implement spell casting with StrokeCapture + GestureRecognizer
+    // 1. Update StrokeCapture with current landmarks
+    // 2. Check if spell was cast (getStroke())
+    // 3. Recognize spell with GestureRecognizer
+    // 4. Display spell result
     
-    // Update cooldowns
-    this.moveRecognizer.updateCooldowns(deltaTime);
+    console.log('Spell casting will happen here (Stage 1 TODO)');
     
-    // Detect moves
-    const detectedMoves = this.moveRecognizer.detectMoves(
-      this.currentLandmarks,
-      this.baseline,
-      this.simulatedStamina
-    );
-    // Debug logging for move detection
-    if (detectedMoves.length > 0) {
-      console.log('🎮 MOVES DETECTED:', {
-        moves: detectedMoves.map(m => ({
-          type: m.type,
-          intensity: (m.intensity * 100).toFixed(0) + '%',
-          timestamp: m.timestamp
-        })),
-        cooldowns: this.moveRecognizer.getCooldowns(),
-        stamina: this.simulatedStamina.toFixed(1),
-        fps: this.currentFps.toFixed(1)
-      });
-      
-      // Also log wrist positions for debugging z-axis detection
-      if (this.currentLandmarks && this.baseline) {
-        const leftWrist = this.currentLandmarks.points[15];
-        const rightWrist = this.currentLandmarks.points[16];
-        const leftDeltaZ = this.baseline.leftWristBaseline.z - leftWrist.z;
-        const rightDeltaZ = this.baseline.rightWristBaseline.z - rightWrist.z;
-        
-        console.log('📍 WRIST POSITIONS:', {
-          leftWrist: {
-            current_z: leftWrist.z.toFixed(3),
-            baseline_z: this.baseline.leftWristBaseline.z.toFixed(3),
-            deltaZ: leftDeltaZ.toFixed(3),
-            threshold: '0.150 (jab)'
-          },
-          rightWrist: {
-            current_z: rightWrist.z.toFixed(3),
-            baseline_z: this.baseline.rightWristBaseline.z.toFixed(3),
-            deltaZ: rightDeltaZ.toFixed(3),
-            threshold: '0.200 (power punch)'
-          }
-        });
-      }
-    }
-    
-    // Update simulated stamina for Stage 1 testing
-    this.updateSimulatedStamina(detectedMoves, deltaTime);
-    
-    // Update renderer with detected moves and FPS
+    // Update renderer with current state
     this.renderer.updateState({
-      detectedMoves,
+      detectedMoves: [],
       landmarks: this.currentLandmarks,
       baseline: this.baseline,
       debug: {
-        thresholds: this.moveRecognizer.getThresholds(),
-        cooldowns: this.moveRecognizer.getCooldowns(),
+        thresholds: {},
+        cooldowns: {},
         stamina: this.simulatedStamina,
         fps: this.currentFps
       }
@@ -598,34 +547,12 @@ export class Application {
   }
 
   /**
-   * Update simulated stamina for Stage 1 testing
-   * 
-   * Simulates stamina mechanics that will be handled by Game_Engine in Stage 2:
-   * - Decreases when moves are performed
-   * - Regenerates slowly when idle
+   * Update simulated stamina for Stage 1 testing (legacy, will be replaced)
    */
-  private updateSimulatedStamina(detectedMoves: any[], deltaTime: number): void {
-    // Stamina costs per move type (Stage 1 simulation)
-    const staminaCosts: { [key: string]: number } = {
-      [MoveType.JAB]: 5,
-      [MoveType.POWER_PUNCH]: 15,
-      [MoveType.DUCK]: 10,
-      [MoveType.BLOCK]: 0.1 * (deltaTime / 16.67), // ~2 per second at 60fps
-      [MoveType.CHARGE]: 50
-    };
-    
-    // Deduct stamina for performed moves
-    for (const move of detectedMoves) {
-      const cost = staminaCosts[move.type] || 0;
-      this.simulatedStamina -= cost;
-    }
-    
-    // Regenerate stamina when idle (no moves detected)
-    if (detectedMoves.length === 0 || 
-        (detectedMoves.length === 1 && detectedMoves[0].type === MoveType.NONE)) {
-      const regenRate = 5; // 5 per second
-      this.simulatedStamina += regenRate * (deltaTime / 1000);
-    }
+  private updateSimulatedStamina(detectedMoves: DetectedMove[], deltaTime: number): void {
+    // Regenerate stamina when idle
+    const regenRate = 5; // 5 per second
+    this.simulatedStamina += regenRate * (deltaTime / 1000);
     
     // Clamp stamina to [0, 100]
     this.simulatedStamina = Math.max(0, Math.min(100, this.simulatedStamina));
@@ -675,11 +602,12 @@ export class Application {
     const lineHeight = 20;
 
     ctx.fillText('Baseline Data:', 20, y); y += lineHeight;
+    ctx.fillText(`Wand Hand: ${this.baseline.wandHand}`, 20, y); y += lineHeight;
     ctx.fillText(`Center: (${this.baseline.centerPosition.x.toFixed(3)}, ${this.baseline.centerPosition.y.toFixed(3)})`, 20, y); y += lineHeight;
     ctx.fillText(`Shoulder Width: ${this.baseline.shoulderWidth.toFixed(3)}`, 20, y); y += lineHeight;
     ctx.fillText(`Head Height: ${this.baseline.headHeight.toFixed(3)}`, 20, y); y += lineHeight;
-    ctx.fillText(`Left Wrist: z=${this.baseline.leftWristBaseline.z.toFixed(3)}`, 20, y); y += lineHeight;
-    ctx.fillText(`Right Wrist: z=${this.baseline.rightWristBaseline.z.toFixed(3)}`, 20, y);
+    ctx.fillText(`Wand Wrist: z=${this.baseline.wandWristBaseline.z.toFixed(3)}`, 20, y); y += lineHeight;
+    ctx.fillText(`Off-hand Wrist: z=${this.baseline.offHandWristBaseline.z.toFixed(3)}`, 20, y);
 
     ctx.restore();
   }
@@ -780,7 +708,7 @@ if (document.readyState === 'loading') {
 function initApp() {
   try {
     app = new Application();
-    console.log('Possessed Brawl - Ready to start');
+    console.log('Spell Duel - Ready to start');
   } catch (error) {
     console.error('Failed to initialize application:', error);
   }
