@@ -483,4 +483,37 @@ export class GestureRecognizer {
   getTemplates(): Map<SpellType, SpellTemplate> {
     return new Map(this.templates);
   }
+  
+  /**
+   * Get all match scores for a stroke (for debug overlay)
+   * 
+   * Returns distance scores for all spell types (lower is better match)
+   */
+  getAllScores(stroke: Stroke): { type: string; score: number }[] {
+    if (!stroke || stroke.points.length < 2) {
+      return [];
+    }
+
+    // Preprocess stroke
+    let points = this.resample(stroke.points, this.config.resamplePoints);
+    points = this.rotateToZero(points);
+    points = this.scaleToSquare(points, this.config.referenceSize);
+    points = this.translateToOrigin(points);
+
+    // Calculate distance to each template
+    const scores: { type: string; score: number }[] = [];
+    for (const [spellType, template] of this.templates) {
+      if (spellType === SpellType.FIZZLE) continue;
+      
+      const distance = this.pathDistance(points, template.points);
+      scores.push({
+        type: spellType,
+        score: distance
+      });
+    }
+
+    // Sort by score (ascending - best match first)
+    scores.sort((a, b) => a.score - b.score);
+    return scores;
+  }
 }

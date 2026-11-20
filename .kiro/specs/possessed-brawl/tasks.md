@@ -203,7 +203,7 @@ The implementation uses **TypeScript** for type safety, **MediaPipe Pose** for b
     - Provide resetToDefaults() method to restore shipped templates
     - _Requirements: 9.7, 9.8_
 
-  - [ ] 8.8 Write unit tests for $1 algorithm
+  - [x] 8.8 Write unit tests for $1 algorithm
     - Test resample with known point counts
     - Test rotation invariance: same shape at 0°, 45°, 90°, 180° matches same template
     - Test scale invariance: same shape at 50%, 100%, 200% size matches same template
@@ -211,7 +211,7 @@ The implementation uses **TypeScript** for type safety, **MediaPipe Pose** for b
     - Test rejection threshold: non-matching strokes return FIZZLE
     - _Requirements: 22.1, 22.2, 22.3, 22.4_
 
-  - [ ] 8.9 Write unit tests for spell template matching
+  - [x] 8.9 Write unit tests for spell template matching
     - Test circle template matches circles
     - Test zigzag template matches zigzags
     - Test straight line template matches straight lines
@@ -233,14 +233,14 @@ The implementation uses **TypeScript** for type safety, **MediaPipe Pose** for b
 #### Template Recording UI
 
 - [ ] 9. Implement template training UI
-  - [ ] 9.1 Create "Train my spells" screen
+  - [x] 9.1 Create "Train my spells" screen
     - Display instructions: "Draw each spell 3 times"
     - Show current spell being trained (SHIELD, LIGHTNING, FIREBALL, FROST)
     - Show sample count (1/3, 2/3, 3/3)
     - Provide visual feedback when each sample is recorded
     - _Requirements: 9.6_
 
-  - [ ] 9.2 Implement training flow
+  - [x] 9.2 Implement training flow
     - User raises off-hand, draws spell, lowers off-hand (same as normal casting)
     - Record stroke as training sample
     - Repeat 3 times per spell
@@ -248,13 +248,13 @@ The implementation uses **TypeScript** for type safety, **MediaPipe Pose** for b
     - After all 4 spells trained, save to localStorage and return to game
     - _Requirements: 9.6, 9.7_
 
-  - [ ] 9.3 Add "Reset to defaults" button
+  - [x] 9.3 Add "Reset to defaults" button
     - Clear trained templates from localStorage
     - Load default templates
     - Display confirmation message
     - _Requirements: 9.8_
 
-  - [ ] 9.4 Add "Train my spells" option to main menu
+  - [x] 9.4 Add "Train my spells" option to main menu
     - Make accessible from main menu or setup screen
     - Allow re-training at any time (overwrites previous training)
     - _Requirements: 9.6_
@@ -264,21 +264,21 @@ The implementation uses **TypeScript** for type safety, **MediaPipe Pose** for b
 - [ ] 10. Update Renderer for Spell Duel (Stage 1 features)
   - [x] 10.1 Basic Canvas rendering infrastructure exists from previous project
 
-  - [ ] 10.2 Implement wand trail rendering
+  - [x] 10.2 Implement wand trail rendering
     - Draw polyline connecting trail points
     - Apply gradient alpha based on age (fade over 500ms)
     - Use warm color (gold/orange) for visual appeal
     - Draw with smooth line joins
     - _Requirements: 5.3, 5.4_
 
-  - [ ] 10.3 Implement off-hand rune glow rendering
+  - [x] 10.3 Implement off-hand rune glow rendering
     - Draw glowing circle under off-hand when READY_ARMED
     - Apply shadow/blur effect for glow
     - Pulse intensity (optional: animate between 0.7-1.0 alpha)
     - Use cool color (blue/cyan) to contrast with wand trail
     - _Requirements: 4.4_
 
-  - [ ] 10.4 Implement spell result overlay
+  - [x] 10.4 Implement spell result overlay
     - Display spell name in large text (center screen)
     - Display confidence percentage below name
     - Display "FIZZLE" in red if recognition failed
@@ -286,7 +286,7 @@ The implementation uses **TypeScript** for type safety, **MediaPipe Pose** for b
     - Clear after 1-2 seconds
     - _Requirements: 10.1, 10.2, 10.3, 10.4, 10.5_
 
-  - [ ] 10.5 Implement placeholder spell effects
+  - [x] 10.5 Implement placeholder spell effects
     - Shield: glowing circle outline around player stick figure
     - Lightning: zigzag lightning bolt flash across screen
     - Fireball: orange/red circle projectile moving horizontally
@@ -294,7 +294,7 @@ The implementation uses **TypeScript** for type safety, **MediaPipe Pose** for b
     - Simple procedural drawing (no sprites)
     - _Requirements: 11.1, 11.2, 11.3, 11.4, 11.5_
 
-  - [ ] 10.6 Update debug overlay for Spell Duel
+  - [x] 10.6 Update debug overlay for Spell Duel
     - Display off-hand state (IDLE, READY_ARMING, READY_ARMED, CAST, CANCEL)
     - Display wand trail points count
     - Display match scores for all 4 spell templates
@@ -313,7 +313,7 @@ The implementation uses **TypeScript** for type safety, **MediaPipe Pose** for b
 #### Stage 1 Integration and Testing
 
 - [ ] 11. Wire Stage 1 components together
-  - [ ] 11.1 Update main application class
+  - [x] 11.1 Update main application class
     - Remove fighting move logic
     - Initialize Pose_Detector (reuse existing)
     - Initialize Calibrator (updated with wand selection)
@@ -323,7 +323,7 @@ The implementation uses **TypeScript** for type safety, **MediaPipe Pose** for b
     - Implement main loop: pose → stroke capture → recognition → display
     - _Requirements: 1.1, 2.1, 4.1, 8.1, 10.1_
 
-  - [ ] 11.2 Implement Stage 1 flow
+  - [x] 11.2 Implement Stage 1 flow
     - Show wand hand selection screen
     - Transition to calibration screen with visual guide
     - Display calibration progress
@@ -331,7 +331,7 @@ The implementation uses **TypeScript** for type safety, **MediaPipe Pose** for b
     - Display wand trail, rune glow, and spell results
     - _Requirements: 2.1, 2.2, 2.3, 2.4_
 
-  - [ ] 11.3 Add threshold tuning UI for Stage 1
+  - [x] 11.3 Add threshold tuning UI for Stage 1
     - Update existing tuning UI to remove fighting move thresholds
     - Add sliders for off-hand raise threshold
     - Add slider for arming delay (milliseconds)
@@ -343,7 +343,7 @@ The implementation uses **TypeScript** for type safety, **MediaPipe Pose** for b
     - Display current values, save to localStorage
     - _Requirements: 4.5, 5.6, 6.4, 7.4, 8.9_
 
-  - [ ] 11.4 Add "Train my spells" flow integration
+  - [x] 11.4 Add "Train my spells" flow integration
     - Add button/menu item to access training mode
     - Integrate template recording UI
     - Test both default and trained template paths

@@ -13,7 +13,7 @@
  * Requirements: 9.1, 9.2, 9.6
  */
 
-import { Landmarks, DetectedMove, BaselineData } from '../types';
+import { Landmarks, DetectedMove, BaselineData, RecognizedSpell, OffHandState, TrailPoint, WandHand, SpellType } from '../types';
 import { PoseLandmark } from '../types/pose';
 
 /**
@@ -67,6 +67,16 @@ export interface RenderState {
    * Calibration baseline data
    */
   baseline?: BaselineData;
+  
+  /**
+   * Spell casting state (Stage 1)
+   */
+  spell?: {
+    offHandState: OffHandState;
+    trail: TrailPoint[];
+    recognizedSpell: RecognizedSpell | null;
+    allScores: { type: string; score: number }[] | null;
+  };
   
   /**
    * Current frames per second
@@ -294,6 +304,17 @@ export class Renderer {
     // Draw baseline reference visualization if available
     if (this.currentState.baseline) {
       this.drawBaselineReference(this.currentState.baseline);
+    }
+    
+    // Draw spell casting visuals (Stage 1)
+    if (this.currentState.spell) {
+      this.drawWandTrail(this.currentState.spell.trail);
+      this.drawOffHandRune(this.currentState.spell.offHandState);
+      
+      if (this.currentState.spell.recognizedSpell) {
+        this.drawSpellResult(this.currentState.spell.recognizedSpell);
+        this.drawSpellEffect(this.currentState.spell.recognizedSpell);
+      }
     }
     
     // Draw debug overlay if enabled
@@ -622,14 +643,14 @@ export class Renderer {
   /**
    * Draw comprehensive debug information overlay
    * 
-   * Task 8.3: Implement debug text overlay
-   * - Display currently detected move name
-   * - Display raw joint position values for key joints (wrists, head, shoulders)
-   * - Display current threshold values for all move types
-   * - Display cooldown timers for all move types
-   * - Display simulated stamina level (for Stage 1 testing)
+   * Task 10.6: Update debug overlay for Spell Duel
+   * - Display off-hand state (IDLE, READY_ARMING, READY_ARMED, CAST, CANCEL)
+   * - Display wand trail points count
+   * - Display match scores for all 4 spell templates
+   * - Display active thresholds
+   * - Display current stroke metrics
    * - Display FPS counter
-   * Requirements: 9.1, 9.2, 9.3, 9.4, 9.5
+   * Requirements: 12.1, 12.2, 12.3, 12.4, 12.5, 12.6, 12.7, 12.8
    */
   private drawDebugInfo(): void {
     // Get or create debug overlay container
@@ -665,51 +686,38 @@ export class Renderer {
     ]);
     leftColumn.appendChild(perfSection);
 
-    // Detected moves section
-    const movesContent: string[] = [];
-    if (this.currentState.detectedMoves && this.currentState.detectedMoves.length > 0) {
-      for (const move of this.currentState.detectedMoves) {
-        const intensity = (move.intensity * 100).toFixed(0);
-        movesContent.push(`${move.type.toUpperCase()}: ${intensity}%`);
+    // Spell casting state section
+    const spellStateContent: string[] = [];
+    if (this.currentState.spell) {
+      spellStateContent.push(`Off-hand: ${this.currentState.spell.offHandState}`);
+      spellStateContent.push(`Trail points: ${this.currentState.spell.trail.length}`);
+      
+      if (this.currentState.spell.recognizedSpell) {
+        const spell = this.currentState.spell.recognizedSpell;
+        spellStateContent.push(`Last spell: ${spell.type}`);
+        spellStateContent.push(`Confidence: ${(spell.confidence * 100).toFixed(1)}%`);
       }
     } else {
-      movesContent.push('<span style="color: #888;">No moves detected</span>');
+      spellStateContent.push('<span style="color: #888;">No spell data</span>');
     }
-    const movesSection = this.createDebugSection('DETECTED MOVES', movesContent);
-    leftColumn.appendChild(movesSection);
+    const spellStateSection = this.createDebugSection('SPELL CASTING', spellStateContent);
+    leftColumn.appendChild(spellStateSection);
 
     // === RIGHT COLUMN ===
     const rightColumn = document.createElement('div');
     rightColumn.style.cssText = 'display: flex; flex-direction: column; gap: 10px;';
 
-    // Stamina section
-    const stamina = this.currentState.debug?.stamina ?? 100;
-    const staminaPercent = Math.max(0, Math.min(100, stamina));
-    const staminaColor = staminaPercent > 50 ? '#0f0' : staminaPercent > 25 ? '#ff0' : '#f00';
-    const staminaContent = [
-      `Stamina: ${stamina.toFixed(0)}`,
-      `<div style="width: 200px; height: 10px; border: 1px solid white; background: #333; margin-top: 5px;">
-        <div style="width: ${staminaPercent}%; height: 100%; background: ${staminaColor};"></div>
-      </div>`
-    ];
-    const staminaSection = this.createDebugSection('STAMINA', staminaContent);
-    rightColumn.appendChild(staminaSection);
-
-    // Cooldowns section
-    const cooldownsContent: string[] = [];
-    if (this.currentState.debug?.cooldowns) {
-      const cooldowns = this.currentState.debug.cooldowns;
-      for (const [moveType, cooldownMs] of Object.entries(cooldowns)) {
-        const cooldownValue = cooldownMs as number;
-        const displayValue = cooldownValue > 0 ? cooldownValue.toFixed(0) : '0';
-        const color = cooldownValue > 0 ? '#f00' : '#0f0';
-        cooldownsContent.push(`<span style="color: ${color};">${moveType.toUpperCase()}: ${displayValue} ms</span>`);
+    // Match scores section (all templates)
+    const scoresContent: string[] = [];
+    if (this.currentState.spell?.allScores && this.currentState.spell.allScores.length > 0) {
+      for (const { type, score } of this.currentState.spell.allScores) {
+        scoresContent.push(`${type}: ${score.toFixed(3)}`);
       }
     } else {
-      cooldownsContent.push('<span style="color: #888;">No cooldown data</span>');
+      scoresContent.push('<span style="color: #888;">No match scores</span>');
     }
-    const cooldownsSection = this.createDebugSection('COOLDOWNS', cooldownsContent);
-    rightColumn.appendChild(cooldownsSection);
+    const scoresSection = this.createDebugSection('MATCH SCORES', scoresContent);
+    rightColumn.appendChild(scoresSection);
 
     // Update overlay
     overlay.innerHTML = '';
@@ -934,6 +942,209 @@ export class Renderer {
    */
   public getFps(): number {
     return this.currentFps;
+  }
+  
+  /**
+   * Draw wand trail (Task 10.2)
+   * 
+   * **Validates: Requirements 5.3, 5.4**
+   */
+  private drawWandTrail(trail: TrailPoint[]): void {
+    if (!trail || trail.length < 2) return;
+    
+    this.ctx.save();
+    this.ctx.lineWidth = 3;
+    this.ctx.lineCap = 'round';
+    this.ctx.lineJoin = 'round';
+    
+    // Draw trail as polyline with fade
+    for (let i = 1; i < trail.length; i++) {
+      const prev = trail[i - 1];
+      const curr = trail[i];
+      
+      // Calculate alpha based on age (fade from 1.0 to 0.0 over 500ms)
+      const alpha = Math.max(0, 1 - (curr.age / 500));
+      
+      // Convert normalized coordinates to pixels
+      const prevPixel = this.normalizedToPixels(prev.x, prev.y);
+      const currPixel = this.normalizedToPixels(curr.x, curr.y);
+      
+      // Golden/orange color for wand trail
+      this.ctx.strokeStyle = `rgba(255, 215, 0, ${alpha})`;
+      
+      this.ctx.beginPath();
+      this.ctx.moveTo(prevPixel.x, prevPixel.y);
+      this.ctx.lineTo(currPixel.x, currPixel.y);
+      this.ctx.stroke();
+    }
+    
+    this.ctx.restore();
+  }
+  
+  /**
+   * Draw off-hand rune glow (Task 10.3)
+   * 
+   * **Validates: Requirement 4.4**
+   */
+  private drawOffHandRune(offHandState: OffHandState): void {
+    // Only draw when READY_ARMED
+    if (offHandState !== OffHandState.READY_ARMED) return;
+    
+    // Find off-hand wrist in current landmarks
+    if (!this.currentState.landmarks || !this.currentState.baseline) return;
+    
+    const offHandWristIndex = this.currentState.baseline.wandHand === WandHand.LEFT 
+      ? PoseLandmark.RIGHT_WRIST 
+      : PoseLandmark.LEFT_WRIST;
+    
+    const offHandWrist = this.currentState.landmarks.points[offHandWristIndex];
+    if (!offHandWrist || offHandWrist.visibility < this.visibilityThreshold) return;
+    
+    const pixel = this.normalizedToPixels(offHandWrist.x, offHandWrist.y);
+    
+    this.ctx.save();
+    
+    // Pulsing glow effect (animate between 0.7-1.0 alpha)
+    const pulseAlpha = 0.7 + 0.3 * Math.sin(Date.now() / 300);
+    
+    // Draw glowing circle with blur
+    this.ctx.shadowBlur = 30;
+    this.ctx.shadowColor = `rgba(0, 191, 255, ${pulseAlpha})`;
+    this.ctx.fillStyle = `rgba(0, 191, 255, ${pulseAlpha * 0.5})`;
+    
+    this.ctx.beginPath();
+    this.ctx.arc(pixel.x, pixel.y, 40, 0, 2 * Math.PI);
+    this.ctx.fill();
+    
+    // Inner bright circle
+    this.ctx.shadowBlur = 10;
+    this.ctx.fillStyle = `rgba(135, 206, 250, ${pulseAlpha})`;
+    this.ctx.beginPath();
+    this.ctx.arc(pixel.x, pixel.y, 20, 0, 2 * Math.PI);
+    this.ctx.fill();
+    
+    this.ctx.restore();
+  }
+  
+  /**
+   * Draw spell result overlay (Task 10.4)
+   * 
+   * **Validates: Requirements 10.1, 10.2, 10.3, 10.4, 10.5**
+   */
+  private drawSpellResult(spell: RecognizedSpell): void {
+    this.ctx.save();
+    
+    const centerX = this.width / 2;
+    const centerY = this.height / 3;
+    
+    // Spell name in large text
+    const isFizzle = spell.type === SpellType.FIZZLE;
+    this.ctx.fillStyle = isFizzle ? '#ff0000' : '#00ff41';
+    this.ctx.font = 'bold 48px monospace';
+    this.ctx.textAlign = 'center';
+    this.ctx.textBaseline = 'middle';
+    
+    // Add text shadow for visibility
+    this.ctx.shadowColor = 'rgba(0, 0, 0, 0.8)';
+    this.ctx.shadowBlur = 10;
+    
+    this.ctx.fillText(spell.type, centerX, centerY);
+    
+    // Confidence percentage
+    if (!isFizzle) {
+      this.ctx.font = '24px monospace';
+      this.ctx.fillStyle = '#ffffff';
+      this.ctx.fillText(
+        `${(spell.confidence * 100).toFixed(1)}% confidence`,
+        centerX,
+        centerY + 50
+      );
+    }
+    
+    this.ctx.restore();
+  }
+  
+  /**
+   * Draw placeholder spell effects (Task 10.5)
+   * 
+   * **Validates: Requirements 11.1, 11.2, 11.3, 11.4, 11.5**
+   */
+  private drawSpellEffect(spell: RecognizedSpell): void {
+    if (spell.type === SpellType.FIZZLE) return;
+    
+    this.ctx.save();
+    
+    const centerX = this.width / 2;
+    const centerY = this.height / 2;
+    
+    // Simple procedural effects (no sprites)
+    switch (spell.type) {
+      case SpellType.SHIELD:
+        // Glowing circle outline around center
+        this.ctx.strokeStyle = 'rgba(100, 149, 237, 0.6)';
+        this.ctx.lineWidth = 5;
+        this.ctx.shadowBlur = 20;
+        this.ctx.shadowColor = 'rgba(100, 149, 237, 0.8)';
+        this.ctx.beginPath();
+        this.ctx.arc(centerX, centerY, 150, 0, 2 * Math.PI);
+        this.ctx.stroke();
+        break;
+        
+      case SpellType.LIGHTNING:
+        // Zigzag lightning bolt
+        this.ctx.strokeStyle = 'rgba(255, 255, 0, 0.8)';
+        this.ctx.lineWidth = 4;
+        this.ctx.shadowBlur = 15;
+        this.ctx.shadowColor = 'rgba(255, 255, 0, 0.8)';
+        
+        this.ctx.beginPath();
+        const startX = this.width * 0.2;
+        const endX = this.width * 0.8;
+        const midX1 = this.width * 0.4;
+        const midX2 = this.width * 0.6;
+        
+        this.ctx.moveTo(startX, centerY);
+        this.ctx.lineTo(midX1, centerY - 50);
+        this.ctx.lineTo(midX1 + 20, centerY);
+        this.ctx.lineTo(midX2, centerY + 50);
+        this.ctx.lineTo(midX2 + 20, centerY);
+        this.ctx.lineTo(endX, centerY);
+        this.ctx.stroke();
+        break;
+        
+      case SpellType.FIREBALL:
+        // Orange/red circle projectile
+        const gradient = this.ctx.createRadialGradient(centerX, centerY, 0, centerX, centerY, 60);
+        gradient.addColorStop(0, 'rgba(255, 140, 0, 0.9)');
+        gradient.addColorStop(0.5, 'rgba(255, 69, 0, 0.7)');
+        gradient.addColorStop(1, 'rgba(255, 0, 0, 0.3)');
+        
+        this.ctx.fillStyle = gradient;
+        this.ctx.shadowBlur = 30;
+        this.ctx.shadowColor = 'rgba(255, 69, 0, 0.8)';
+        this.ctx.beginPath();
+        this.ctx.arc(centerX, centerY, 60, 0, 2 * Math.PI);
+        this.ctx.fill();
+        break;
+        
+      case SpellType.FROST:
+        // Blue wave effect expanding outward
+        this.ctx.strokeStyle = 'rgba(0, 191, 255, 0.6)';
+        this.ctx.lineWidth = 3;
+        this.ctx.shadowBlur = 20;
+        this.ctx.shadowColor = 'rgba(0, 191, 255, 0.8)';
+        
+        // Draw multiple expanding circles
+        for (let i = 0; i < 3; i++) {
+          const radius = 80 + i * 40;
+          this.ctx.beginPath();
+          this.ctx.arc(centerX, centerY, radius, 0, 2 * Math.PI);
+          this.ctx.stroke();
+        }
+        break;
+    }
+    
+    this.ctx.restore();
   }
   
   /**

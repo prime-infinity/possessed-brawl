@@ -12,7 +12,10 @@ import { Calibrator, CalibrationState } from './components/Calibrator';
 import { CalibrationUI } from './components/CalibrationUI';
 import { Renderer } from './components/Renderer';
 import { ThresholdTuningUI } from './components/ThresholdTuningUI';
-import { Landmarks, BaselineData, MoveType, DetectedMove } from './types';
+import { StrokeCapture } from './components/StrokeCapture';
+import { GestureRecognizer } from './components/GestureRecognizer';
+import { TemplateRecorder } from './components/TemplateRecorder';
+import { Landmarks, BaselineData, MoveType, DetectedMove, RecognizedSpell, OffHandState } from './types';
 
 /**
  * Application state enumeration
@@ -42,7 +45,9 @@ export class Application {
   private poseDetector: PoseDetector;
   private calibrator: Calibrator;
   private calibrationUI: CalibrationUI;
-  // private moveRecognizer: MoveRecognizer | null = null; // TODO: Replace with StrokeCapture + GestureRecognizer
+  private strokeCapture: StrokeCapture | null = null;
+  private gestureRecognizer: GestureRecognizer | null = null;
+  private templateRecorder: TemplateRecorder | null = null;
   private renderer: Renderer;
   private tuningUI: ThresholdTuningUI | null = null;
   
@@ -50,12 +55,18 @@ export class Application {
   private state: AppState = AppState.NOT_STARTED;
   private isRunning: boolean = false;
   private calibrationCompleted: boolean = false;
+  private isTrainingMode: boolean = false;
   private animationFrameId: number | null = null;
   
   // Pose data
   private currentLandmarks: Landmarks | null = null;
   private previousLandmarks: Landmarks | null = null;
   private baseline: BaselineData | null = null;
+  
+  // Spell casting state
+  private lastRecognizedSpell: RecognizedSpell | null = null;
+  private spellDisplayTimer: number = 0;
+  private readonly SPELL_DISPLAY_DURATION = 2000; // 2 seconds
   
   // Simulated stamina for Stage 1 testing (will be replaced in Stage 2)
   private simulatedStamina: number = 100;
@@ -78,6 +89,7 @@ export class Application {
   // DOM elements
   private canvas: HTMLCanvasElement;
   private startBtn: HTMLButtonElement;
+  private trainSpellsBtn: HTMLButtonElement;
   private loadingScreen: HTMLDivElement;
   private calibrationScreen: HTMLDivElement;
   private performanceWarning: HTMLDivElement | null = null;
@@ -89,10 +101,11 @@ export class Application {
     // Get DOM elements
     this.canvas = document.getElementById('canvas') as HTMLCanvasElement;
     this.startBtn = document.getElementById('start-btn') as HTMLButtonElement;
+    this.trainSpellsBtn = document.getElementById('train-spells-btn') as HTMLButtonElement;
     this.loadingScreen = document.getElementById('loading-screen') as HTMLDivElement;
     this.calibrationScreen = document.getElementById('calibration-screen') as HTMLDivElement;
     
-    if (!this.canvas || !this.startBtn || !this.loadingScreen || !this.calibrationScreen) {
+    if (!this.canvas || !this.startBtn || !this.trainSpellsBtn || !this.loadingScreen || !this.calibrationScreen) {
       throw new Error('Required DOM elements not found');
     }
     
@@ -185,6 +198,14 @@ export class Application {
       });
     });
     
+    // Train spells button click handler
+    this.trainSpellsBtn.addEventListener('click', () => {
+      this.startTemplateTraining().catch(error => {
+        console.error('Failed to start template training:', error);
+        this.handleError(error);
+      });
+    });
+    
     // Calibration retry handler (R key)
     document.addEventListener('keydown', (e) => {
       if (e.key.toLowerCase() === 'r' && 
@@ -258,6 +279,46 @@ export class Application {
       
     } catch (error) {
       console.error('Failed to start application:', error);
+      this.handleError(error);
+      throw error;
+    }
+  }
+  
+  /**
+   * Start template training flow
+   * 
+   * **Validates: Requirements 9.6, 9.7, 9.8**
+   */
+  async startTemplateTraining(): Promise<void> {
+    try {
+      this.state = AppState.INITIALIZING;
+      this.isTrainingMode = true;
+      console.log('Starting template training...');
+      
+      // Hide loading screen
+      this.loadingScreen.classList.remove('active');
+      
+      // Initialize PoseDetector (requests webcam permission)
+      console.log('Initializing pose detector...');
+      await this.poseDetector.initialize();
+      console.log('Pose detector initialized successfully');
+      
+      // Show canvas for rendering
+      this.canvas.classList.add('active');
+      this.showVideoPreview();
+      
+      // Start calibration
+      this.state = AppState.CALIBRATING;
+      this.calibrator.startCalibration();
+      console.log('Calibration started for training - assume guard position');
+      
+      // Start main loop
+      this.isRunning = true;
+      this.lastFrameTime = performance.now();
+      this.mainLoop();
+      
+    } catch (error) {
+      console.error('Failed to start template training:', error);
       this.handleError(error);
       throw error;
     }
@@ -473,7 +534,7 @@ export class Application {
   /**
    * Handle calibration completion
    * 
-   * Initializes move detection and transitions to active state.
+   * Initializes spell casting components and transitions to active state.
    * 
    * **Validates: Requirements 2.1, 4.1**
    */
@@ -491,10 +552,10 @@ export class Application {
       return;
     }
 
-    // TODO Stage 1: Initialize StrokeCapture and GestureRecognizer here
-    // this.strokeCapture = new StrokeCapture();
-    // this.gestureRecognizer = new GestureRecognizer();
-    console.log('Spell casting components will be initialized here');
+    // Initialize StrokeCapture and GestureRecognizer
+    this.strokeCapture = new StrokeCapture();
+    this.gestureRecognizer = new GestureRecognizer();
+    console.log('Spell casting components initialized');
 
     // TODO: Initialize threshold tuning UI for spell casting thresholds
     // this.tuningUI = new ThresholdTuningUI(...);
@@ -513,30 +574,97 @@ export class Application {
       
       // Start renderer
       this.renderer.start();
+      
+      // If this was initiated from "Train My Spells", start template recorder
+      if (this.isTrainingMode && this.strokeCapture && this.gestureRecognizer) {
+        this.startTemplateRecorder();
+      }
     }, 1000); // 1 second delay to show completion message
+  }
+  
+  /**
+   * Start template recorder
+   * 
+   * **Validates: Requirements 9.6, 9.7, 9.8**
+   */
+  private startTemplateRecorder(): void {
+    if (!this.strokeCapture || !this.gestureRecognizer) {
+      console.error('Cannot start template recorder: components not initialized');
+      return;
+    }
+    
+    this.templateRecorder = new TemplateRecorder({
+      strokeCapture: this.strokeCapture,
+      gestureRecognizer: this.gestureRecognizer,
+      onComplete: () => {
+        console.log('Template training complete');
+        // Return to loading screen
+        this.stop();
+        this.loadingScreen.classList.add('active');
+        this.canvas.classList.remove('active');
+        this.state = AppState.NOT_STARTED;
+      },
+      onCancel: () => {
+        console.log('Template training cancelled');
+        // Return to loading screen
+        this.stop();
+        this.loadingScreen.classList.add('active');
+        this.canvas.classList.remove('active');
+        this.state = AppState.NOT_STARTED;
+      }
+    });
+    
+    this.templateRecorder.start();
   }
 
   /**
-   * Process move recognition with current landmarks
+   * Process spell casting with current landmarks
    * 
-   * **Validates: Requirements 4.1, 4.2, 4.3**
+   * **Validates: Requirements 4.1, 5.1, 6.1, 8.1**
    */
   private processMoveRecognition(deltaTime: number): void {
-    if (!this.currentLandmarks || !this.baseline) return;
+    if (!this.currentLandmarks || !this.baseline || !this.strokeCapture || !this.gestureRecognizer) return;
 
-    // TODO Stage 1: Implement spell casting with StrokeCapture + GestureRecognizer
-    // 1. Update StrokeCapture with current landmarks
-    // 2. Check if spell was cast (getStroke())
-    // 3. Recognize spell with GestureRecognizer
-    // 4. Display spell result
+    // Update stroke capture with current landmarks and baseline
+    this.strokeCapture.update(this.currentLandmarks, this.baseline, deltaTime);
     
-    console.log('Spell casting will happen here (Stage 1 TODO)');
+    // Check if spell was cast
+    const stroke = this.strokeCapture.getStroke();
+    let allScores: { type: string; score: number }[] | null = null;
+    
+    if (stroke) {
+      console.log(`Spell cast detected! Stroke has ${stroke.points.length} points`);
+      
+      // Recognize spell
+      const recognizedSpell = this.gestureRecognizer.recognize(stroke);
+      allScores = this.gestureRecognizer.getAllScores(stroke);
+      
+      console.log(`Recognized: ${recognizedSpell.type} (confidence: ${(recognizedSpell.confidence * 100).toFixed(1)}%, score: ${recognizedSpell.matchScore.toFixed(3)})`);
+      
+      // Store for display
+      this.lastRecognizedSpell = recognizedSpell;
+      this.spellDisplayTimer = this.SPELL_DISPLAY_DURATION;
+    }
+    
+    // Update spell display timer
+    if (this.spellDisplayTimer > 0) {
+      this.spellDisplayTimer = Math.max(0, this.spellDisplayTimer - deltaTime);
+      if (this.spellDisplayTimer === 0) {
+        this.lastRecognizedSpell = null;
+      }
+    }
     
     // Update renderer with current state
     this.renderer.updateState({
       detectedMoves: [],
       landmarks: this.currentLandmarks,
       baseline: this.baseline,
+      spell: {
+        offHandState: this.strokeCapture.getOffHandState(),
+        trail: this.strokeCapture.getWandTrail(),
+        recognizedSpell: this.lastRecognizedSpell,
+        allScores: allScores
+      },
       debug: {
         thresholds: {},
         cooldowns: {},
