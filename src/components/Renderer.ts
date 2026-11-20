@@ -991,10 +991,10 @@ export class Renderer {
     const centerX = this.width / 2;
     const centerY = this.height / 3;
     
-    // Spell name in large text
+    // Spell name in smaller text for better screen visibility
     const isFizzle = spell.type === SpellType.FIZZLE;
     this.ctx.fillStyle = isFizzle ? '#ff0000' : '#00ff41';
-    this.ctx.font = 'bold 48px monospace';
+    this.ctx.font = 'bold 20px monospace';
     this.ctx.textAlign = 'center';
     this.ctx.textBaseline = 'middle';
     
@@ -1006,12 +1006,12 @@ export class Renderer {
     
     // Confidence percentage
     if (!isFizzle) {
-      this.ctx.font = '24px monospace';
+      this.ctx.font = '14px monospace';
       this.ctx.fillStyle = '#ffffff';
       this.ctx.fillText(
         `${(spell.confidence * 100).toFixed(1)}% confidence`,
         centerX,
-        centerY + 50
+        centerY + 25
       );
     }
     
