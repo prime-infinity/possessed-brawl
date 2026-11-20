@@ -331,7 +331,7 @@ The implementation uses **TypeScript** for type safety, **MediaPipe Pose** for b
     - Display wand trail, rune glow, and spell results
     - _Requirements: 2.1, 2.2, 2.3, 2.4_
 
-  - [x] 11.3 Add threshold tuning UI for Stage 1
+  - [ ] 11.3 Add threshold tuning UI for Stage 1
     - Update existing tuning UI to remove fighting move thresholds
     - Add sliders for off-hand raise threshold
     - Add slider for arming delay (milliseconds)
@@ -341,6 +341,7 @@ The implementation uses **TypeScript** for type safety, **MediaPipe Pose** for b
     - Add slider for min bounding box size
     - Add slider for recognition rejection threshold
     - Display current values, save to localStorage
+    - NOTE: Existing ThresholdTuningUI from old project needs updating, but not critical for Stage 1 checkpoint
     - _Requirements: 4.5, 5.6, 6.4, 7.4, 8.9_
 
   - [x] 11.4 Add "Train my spells" flow integration
