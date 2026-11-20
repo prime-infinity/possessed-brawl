@@ -237,7 +237,7 @@ export class CalibrationUI {
     const ctx = this.ctx;
     
     // Use HTML overlay
-    this.updateTextOverlay('✓ Calibration Complete!', 'Get ready to fight...');
+    this.updateTextOverlay('✓ Calibration Complete!', 'Get ready to cast spells...');
   }
 
   /**

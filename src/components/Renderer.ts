@@ -494,53 +494,7 @@ export class Renderer {
     this.ctx.fillText(`${baseline.wandHand === 'right' ? 'R' : 'L'} (wand)`, wandWristPixel.x, wandWristPixel.y);
     this.ctx.fillText(`${baseline.wandHand === 'right' ? 'L' : 'R'} (off)`, offHandWristPixel.x, offHandWristPixel.y);
     
-    // 4. Draw calibration quality metrics text overlay
-    // Position in bottom-left corner
-    const metricsX = 10;
-    const metricsY = this.height - 80;
-    const metricsLineHeight = 14;
-    
-    this.ctx.fillStyle = '#ffff00'; // Yellow header
-    this.ctx.font = '12px monospace';
-    this.ctx.textAlign = 'left';
-    this.ctx.textBaseline = 'top';
-    this.ctx.fillText('=== BASELINE ===', metricsX, metricsY);
-    
-    this.ctx.fillStyle = '#fff';
-    let metricsYPos = metricsY + metricsLineHeight;
-    
-    // Display shoulder width
-    this.ctx.fillText(
-      `Shoulder Width: ${baseline.shoulderWidth.toFixed(3)}`,
-      metricsX,
-      metricsYPos
-    );
-    metricsYPos += metricsLineHeight;
-    
-    // Display head height
-    this.ctx.fillText(
-      `Head Height: ${baseline.headHeight.toFixed(3)}`,
-      metricsX,
-      metricsYPos
-    );
-    metricsYPos += metricsLineHeight;
-    
-    // Display center position
-    this.ctx.fillText(
-      `Center: (${baseline.centerPosition.x.toFixed(2)}, ${baseline.centerPosition.y.toFixed(2)})`,
-      metricsX,
-      metricsYPos
-    );
-    metricsYPos += metricsLineHeight;
-    
-    // Display calibration status from debug data if available
-    if (this.currentState.debug?.calibrationFrames !== undefined) {
-      this.ctx.fillText(
-        `Frames: ${this.currentState.debug.calibrationFrames}`,
-        metricsX,
-        metricsYPos
-      );
-    }
+    // Baseline metrics removed from display - use debug overlay (D key) for detailed info
     
     this.ctx.restore();
   }

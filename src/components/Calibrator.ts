@@ -171,10 +171,9 @@ export class Calibrator {
    * Check if landmarks represent ready stance for spell casting
    * 
    * Ready stance requires:
-   * - Off-hand wrist raised near head (shoulder height or above)
-   * - Wand hand relaxed (not near head)
+   * - Off-hand wrist at or above shoulder height
+   * - Wand hand relaxed (below shoulder height)
    * - Shoulders are level (vertical difference < threshold)
-   * - Head is upright (nose is visible)
    * 
    * **Validates: Requirements 2.2, 2.3, 2.4** - detect when player is in ready stance
    * 
@@ -189,15 +188,14 @@ export class Calibrator {
       return false;
     }
 
-    // Get key landmarks for guard position check
-    const nose = points[PoseLandmark.NOSE];
+    // Get key landmarks for ready stance check
     const leftWrist = points[PoseLandmark.LEFT_WRIST];
     const rightWrist = points[PoseLandmark.RIGHT_WRIST];
     const leftShoulder = points[PoseLandmark.LEFT_SHOULDER];
     const rightShoulder = points[PoseLandmark.RIGHT_SHOULDER];
 
     // Check visibility of all required landmarks
-    const requiredLandmarks = [nose, leftWrist, rightWrist, leftShoulder, rightShoulder];
+    const requiredLandmarks = [leftWrist, rightWrist, leftShoulder, rightShoulder];
     for (const landmark of requiredLandmarks) {
       if (!landmark || landmark.visibility < this.config.calibrationVisibilityThreshold) {
         return false;
@@ -213,14 +211,14 @@ export class Calibrator {
     // Determine off-hand and wand hand based on selection
     const offHandWrist = this.selectedWandHand === WandHand.RIGHT ? leftWrist : rightWrist;
     const wandHandWrist = this.selectedWandHand === WandHand.RIGHT ? rightWrist : leftWrist;
+    const offHandShoulder = this.selectedWandHand === WandHand.RIGHT ? leftShoulder : rightShoulder;
 
-    // Check if off-hand is raised near head
-    const offHandDistance = this.euclideanDistance2D(offHandWrist, nose);
-    const offHandRaised = offHandDistance < this.config.readyStanceProximityThreshold;
+    // Check if off-hand wrist is raised to or above shoulder height
+    // (Y coordinate is inverted - smaller Y means higher on screen)
+    const offHandRaised = offHandWrist.y <= offHandShoulder.y + 0.05; // Small tolerance
 
-    // Check if wand hand is relaxed (NOT near head)
-    const wandHandDistance = this.euclideanDistance2D(wandHandWrist, nose);
-    const wandHandRelaxed = wandHandDistance > this.config.readyStanceProximityThreshold;
+    // Check if wand hand is relaxed (wrist below shoulder height)
+    const wandHandRelaxed = wandHandWrist.y > offHandShoulder.y + 0.1; // Must be clearly below
 
     const inReadyStance = offHandRaised && wandHandRelaxed;
 

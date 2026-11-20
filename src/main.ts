@@ -710,34 +710,11 @@ export class Application {
 
   /**
    * Display baseline data on canvas for debugging
+   * 
+   * NOTE: This display is removed for cleaner UI. Enable debug mode (D key) to see spell casting info.
    */
   private displayBaselineData(): void {
-    if (!this.baseline) return;
-
-    const ctx = this.canvas.getContext('2d');
-    if (!ctx) return;
-
-    ctx.save();
-    ctx.fillStyle = 'rgba(0, 0, 0, 0.7)';
-    ctx.fillRect(10, this.canvas.height - 150, 300, 140);
-    
-    ctx.fillStyle = '#00ff00';
-    ctx.font = '14px monospace';
-    ctx.textAlign = 'left';
-    ctx.textBaseline = 'top';
-
-    let y = this.canvas.height - 140;
-    const lineHeight = 20;
-
-    ctx.fillText('Baseline Data:', 20, y); y += lineHeight;
-    ctx.fillText(`Wand Hand: ${this.baseline.wandHand}`, 20, y); y += lineHeight;
-    ctx.fillText(`Center: (${this.baseline.centerPosition.x.toFixed(3)}, ${this.baseline.centerPosition.y.toFixed(3)})`, 20, y); y += lineHeight;
-    ctx.fillText(`Shoulder Width: ${this.baseline.shoulderWidth.toFixed(3)}`, 20, y); y += lineHeight;
-    ctx.fillText(`Head Height: ${this.baseline.headHeight.toFixed(3)}`, 20, y); y += lineHeight;
-    ctx.fillText(`Wand Wrist: z=${this.baseline.wandWristBaseline.z.toFixed(3)}`, 20, y); y += lineHeight;
-    ctx.fillText(`Off-hand Wrist: z=${this.baseline.offHandWristBaseline.z.toFixed(3)}`, 20, y);
-
-    ctx.restore();
+    // Baseline data display removed - use debug overlay instead (press D key)
   }
 
   /**
