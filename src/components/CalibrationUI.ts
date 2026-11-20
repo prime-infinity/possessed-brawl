@@ -322,12 +322,12 @@ export class CalibrationUI {
     ctx.lineTo(centerX + shoulderHalfWidth, shoulderY);
     ctx.stroke();
     
-    // Left arm (bent, hand near face)
+    // LEFT ARM - OFF-HAND RAISED (triggers casting)
     const leftShoulderX = centerX - shoulderHalfWidth;
-    const leftElbowX = centerX - scale * 0.15;
-    const leftElbowY = centerY - scale * 0.3;
-    const leftWristX = centerX - scale * 0.2;
-    const leftWristY = centerY - scale * 1.0;  // Near face
+    const leftElbowX = centerX - scale * 0.5;
+    const leftElbowY = centerY - scale * 0.6;
+    const leftWristX = centerX - scale * 0.55;
+    const leftWristY = centerY - scale * 0.95;  // Raised to shoulder height
     
     ctx.beginPath();
     ctx.moveTo(leftShoulderX, shoulderY);
@@ -335,24 +335,31 @@ export class CalibrationUI {
     ctx.lineTo(leftWristX, leftWristY);
     ctx.stroke();
     
-    // Right arm (bent, hand near face)
-    const rightShoulderX = centerX + shoulderHalfWidth;
-    const rightElbowX = centerX + scale * 0.15;
-    const rightElbowY = centerY - scale * 0.3;
-    const rightWristX = centerX + scale * 0.2;
-    const rightWristY = centerY - scale * 1.0;  // Near face
+    // Highlight off-hand with glowing effect
+    ctx.shadowBlur = 15;
+    ctx.shadowColor = 'rgba(0, 191, 255, 0.8)';
+    ctx.fillStyle = 'rgba(0, 191, 255, 0.6)';
+    ctx.beginPath();
+    ctx.arc(leftWristX, leftWristY, 12, 0, Math.PI * 2);
+    ctx.fill();
+    ctx.shadowBlur = 0;
     
+    // RIGHT ARM - WAND HAND RELAXED (down at side)
+    const rightShoulderX = centerX + shoulderHalfWidth;
+    const rightElbowX = centerX + scale * 0.45;
+    const rightElbowY = centerY - scale * 0.2;
+    const rightWristX = centerX + scale * 0.5;
+    const rightWristY = centerY + scale * 0.05;  // Relaxed at side
+    
+    ctx.strokeStyle = this.config.diagramColor;
+    ctx.fillStyle = this.config.diagramColor;
     ctx.beginPath();
     ctx.moveTo(rightShoulderX, shoulderY);
     ctx.lineTo(rightElbowX, rightElbowY);
     ctx.lineTo(rightWristX, rightWristY);
     ctx.stroke();
     
-    // Highlight hands with circles
-    ctx.beginPath();
-    ctx.arc(leftWristX, leftWristY, 8, 0, Math.PI * 2);
-    ctx.fill();
-    
+    // Wand hand circle (normal)
     ctx.beginPath();
     ctx.arc(rightWristX, rightWristY, 8, 0, Math.PI * 2);
     ctx.fill();
