@@ -39,42 +39,64 @@ export class GestureRecognizer {
   recognize(stroke: Stroke): RecognizedSpell {
     // Validate stroke
     if (!stroke || stroke.points.length < 2) {
+      console.log('❌ Recognition: Invalid stroke (too few points)');
       return this.createFizzleResult();
     }
 
+    console.log(`📊 $1 Recognition Pipeline:`);
+    console.log(`   Raw points: ${stroke.points.length}`);
+
     // Step 1: Resample to N points
     let points = this.resample(stroke.points, this.config.resamplePoints);
+    console.log(`   After resample: ${points.length} points`);
+    console.log(`   Resampled shape: first=(${points[0].x.toFixed(3)},${points[0].y.toFixed(3)}), mid=(${points[32].x.toFixed(3)},${points[32].y.toFixed(3)}), last=(${points[63].x.toFixed(3)},${points[63].y.toFixed(3)})`);
 
     // Step 2: Rotate to indicative angle (0°)
     points = this.rotateToZero(points);
+    console.log(`   Rotated to normalize orientation`);
+    console.log(`   After rotation: first=(${points[0].x.toFixed(3)},${points[0].y.toFixed(3)}), mid=(${points[32].x.toFixed(3)},${points[32].y.toFixed(3)}), last=(${points[63].x.toFixed(3)},${points[63].y.toFixed(3)})`);
 
     // Step 3: Scale to reference square
     points = this.scaleToSquare(points, this.config.referenceSize);
+    console.log(`   Scaled to reference square (${this.config.referenceSize})`);
+    console.log(`   After scaling: first=(${points[0].x.toFixed(3)},${points[0].y.toFixed(3)}), mid=(${points[32].x.toFixed(3)},${points[32].y.toFixed(3)}), last=(${points[63].x.toFixed(3)},${points[63].y.toFixed(3)})`);
 
     // Step 4: Translate to origin
     points = this.translateToOrigin(points);
+    console.log(`   Translated to origin`);
+    console.log(`   Final normalized: first=(${points[0].x.toFixed(3)},${points[0].y.toFixed(3)}), mid=(${points[32].x.toFixed(3)},${points[32].y.toFixed(3)}), last=(${points[63].x.toFixed(3)},${points[63].y.toFixed(3)})`);
+
 
     // Step 5: Compare to all templates
     let bestMatch: SpellType | null = null;
     let bestDistance = Infinity;
+    const distances: { type: SpellType; distance: number }[] = [];
 
     for (const [spellType, template] of this.templates) {
       if (spellType === SpellType.FIZZLE) continue;
 
       const distance = this.pathDistance(points, template.points);
+      distances.push({ type: spellType, distance });
+      
       if (distance < bestDistance) {
         bestDistance = distance;
         bestMatch = spellType;
       }
     }
 
+    console.log(`   Distances to templates:`, distances.map(d => `${d.type}=${d.distance.toFixed(3)}`).join(', '));
+    console.log(`   Rejection threshold: ${this.config.rejectionThreshold}`);
+
     // Step 6: Reject if distance too high
     if (bestDistance > this.config.rejectionThreshold || bestMatch === null) {
+      console.log(`   ❌ REJECTED: Best distance ${bestDistance.toFixed(3)} > threshold ${this.config.rejectionThreshold}`);
       return this.createFizzleResult();
     }
 
     // Step 7: Calculate confidence
     const confidence = Math.max(0, 1 - bestDistance / this.config.rejectionThreshold);
+
+    console.log(`   ✅ MATCHED: ${bestMatch} with distance ${bestDistance.toFixed(3)}, confidence ${(confidence * 100).toFixed(1)}%`);
 
     return {
       type: bestMatch,
@@ -155,18 +177,19 @@ export class GestureRecognizer {
   }
 
   /**
-   * Scale points to fit in a reference square
+   * Scale points to fit in a reference square (MUST use uniform scaling)
    * 
    * **Validates: Requirement 8.4**
    */
   private scaleToSquare(points: { x: number; y: number }[], size: number): { x: number; y: number }[] {
     const box = this.boundingBox(points);
-    const scaleX = size / box.width;
-    const scaleY = size / box.height;
+    // CRITICAL: Use uniform scaling (same scale for X and Y)
+    // Use the LARGER dimension to preserve shape
+    const scale = size / Math.max(box.width, box.height);
 
     return points.map(p => ({
-      x: p.x * scaleX,
-      y: p.y * scaleY
+      x: p.x * scale,
+      y: p.y * scale
     }));
   }
 
@@ -386,6 +409,15 @@ export class GestureRecognizer {
     });
 
     console.log('Reset to default templates');
+    
+    // Debug: Log what the templates look like
+    console.log('📋 Default template shapes:');
+    for (const [spellType, template] of this.templates) {
+      if (spellType === SpellType.FIZZLE) continue;
+      const pts = template.points;
+      console.log(`   ${spellType}: first=(${pts[0].x.toFixed(3)},${pts[0].y.toFixed(3)}), mid=(${pts[32].x.toFixed(3)},${pts[32].y.toFixed(3)}), last=(${pts[63].x.toFixed(3)},${pts[63].y.toFixed(3)})`);
+    }
+    
     this.saveTemplates();
   }
 

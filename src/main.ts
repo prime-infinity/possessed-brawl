@@ -15,7 +15,8 @@ import { ThresholdTuningUI } from './components/ThresholdTuningUI';
 import { StrokeCapture } from './components/StrokeCapture';
 import { GestureRecognizer } from './components/GestureRecognizer';
 import { TemplateRecorder } from './components/TemplateRecorder';
-import { Landmarks, BaselineData, MoveType, DetectedMove, RecognizedSpell, OffHandState } from './types';
+import { WandHandSelector, SelectionState } from './components/WandHandSelector';
+import { Landmarks, BaselineData, MoveType, DetectedMove, RecognizedSpell, OffHandState, WandHand } from './types';
 
 /**
  * Application state enumeration
@@ -23,6 +24,7 @@ import { Landmarks, BaselineData, MoveType, DetectedMove, RecognizedSpell, OffHa
 export enum AppState {
   NOT_STARTED = 'not_started',
   INITIALIZING = 'initializing',
+  SELECTING_HANDS = 'selecting_hands',
   CALIBRATING = 'calibrating',
   ACTIVE = 'active',
   ERROR = 'error',
@@ -45,6 +47,7 @@ export class Application {
   private poseDetector: PoseDetector;
   private calibrator: Calibrator;
   private calibrationUI: CalibrationUI;
+  private wandHandSelector: WandHandSelector | null = null;
   private strokeCapture: StrokeCapture | null = null;
   private gestureRecognizer: GestureRecognizer | null = null;
   private templateRecorder: TemplateRecorder | null = null;
@@ -267,10 +270,19 @@ export class Application {
       this.canvas.classList.add('active');
       this.showVideoPreview();
       
-      // Start calibration
-      this.state = AppState.CALIBRATING;
-      this.calibrator.startCalibration();
-      console.log('Calibration started - assume guard position');
+      // Start hand selection
+      this.state = AppState.SELECTING_HANDS;
+      this.wandHandSelector = new WandHandSelector({
+        canvas: this.canvas,
+        onComplete: (wandHand: WandHand, verified: boolean) => {
+          console.log(`Hand selection complete: ${wandHand}, verified: ${verified}`);
+          // Set wand hand in calibrator
+          this.calibrator.selectWandHand(wandHand);
+          // Start calibration
+          this.startCalibration();
+        }
+      });
+      this.wandHandSelector.start();
       
       // Start main loop
       this.isRunning = true;
@@ -282,6 +294,15 @@ export class Application {
       this.handleError(error);
       throw error;
     }
+  }
+  
+  /**
+   * Start calibration after hand selection
+   */
+  private startCalibration(): void {
+    this.state = AppState.CALIBRATING;
+    this.calibrator.startCalibration();
+    console.log('Calibration started - assume ready stance');
   }
   
   /**
@@ -307,10 +328,19 @@ export class Application {
       this.canvas.classList.add('active');
       this.showVideoPreview();
       
-      // Start calibration
-      this.state = AppState.CALIBRATING;
-      this.calibrator.startCalibration();
-      console.log('Calibration started for training - assume guard position');
+      // Start hand selection
+      this.state = AppState.SELECTING_HANDS;
+      this.wandHandSelector = new WandHandSelector({
+        canvas: this.canvas,
+        onComplete: (wandHand: WandHand, verified: boolean) => {
+          console.log(`Hand selection complete (training mode): ${wandHand}, verified: ${verified}`);
+          // Set wand hand in calibrator
+          this.calibrator.selectWandHand(wandHand);
+          // Start calibration
+          this.startCalibration();
+        }
+      });
+      this.wandHandSelector.start();
       
       // Start main loop
       this.isRunning = true;
@@ -488,6 +518,11 @@ export class Application {
       this.processCalibration();
     }
     
+    // Step 2.5: Hand selection (if in selection state)
+    if (this.state === AppState.SELECTING_HANDS && this.wandHandSelector) {
+      this.wandHandSelector.update(this.currentLandmarks);
+    }
+    
     // Step 3: Move Recognition (if calibrated and active)
     if (this.state === AppState.ACTIVE && this.baseline) {
       this.processMoveRecognition(deltaTime);
@@ -633,13 +668,17 @@ export class Application {
     let allScores: { type: string; score: number }[] | null = null;
     
     if (stroke) {
-      console.log(`Spell cast detected! Stroke has ${stroke.points.length} points`);
+      console.log(`🎯 Spell cast detected! Stroke has ${stroke.points.length} points`);
+      console.log(`   First 5 points:`, stroke.points.slice(0, 5).map(p => `(${p.x.toFixed(2)},${p.y.toFixed(2)})`));
+      console.log(`   Last 5 points:`, stroke.points.slice(-5).map(p => `(${p.x.toFixed(2)},${p.y.toFixed(2)})`));
       
       // Recognize spell
       const recognizedSpell = this.gestureRecognizer.recognize(stroke);
       allScores = this.gestureRecognizer.getAllScores(stroke);
       
-      console.log(`Recognized: ${recognizedSpell.type} (confidence: ${(recognizedSpell.confidence * 100).toFixed(1)}%, score: ${recognizedSpell.matchScore.toFixed(3)})`);
+      console.log(`🔮 Recognition results:`);
+      console.log(`   Winner: ${recognizedSpell.type} (confidence: ${(recognizedSpell.confidence * 100).toFixed(1)}%, score: ${recognizedSpell.matchScore.toFixed(3)})`);
+      console.log(`   All scores:`, allScores.map(s => `${s.type}=${s.score.toFixed(3)}`).join(', '));
       
       // Store for display
       this.lastRecognizedSpell = recognizedSpell;

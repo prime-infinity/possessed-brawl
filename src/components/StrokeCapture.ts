@@ -33,6 +33,17 @@ export class StrokeCapture {
     const offHandWrist = this.getOffHandWrist(landmarks, baseline.wandHand);
     const wandWrist = this.getWandWrist(landmarks, baseline.wandHand);
     
+    // Debug: Log wrist positions on first frame of arming
+    if (this.offHandState === OffHandState.IDLE && offHandWrist && wandWrist) {
+      const shoulderY = this.getShoulderY(landmarks, baseline.wandHand);
+      const offHandHeight = shoulderY - offHandWrist.y;
+      if (offHandHeight > this.config.offHandRaiseThreshold) {
+        console.log(`🖐️ Wand hand: ${baseline.wandHand}`);
+        console.log(`   Off-hand wrist at: (${offHandWrist.x.toFixed(3)}, ${offHandWrist.y.toFixed(3)})`);
+        console.log(`   Wand wrist at: (${wandWrist.x.toFixed(3)}, ${wandWrist.y.toFixed(3)})`);
+      }
+    }
+    
     if (!offHandWrist || !wandWrist) {
       // Cannot see required landmarks, maintain current state
       return;
@@ -120,11 +131,14 @@ export class StrokeCapture {
 
   /**
    * Get off-hand wrist landmark
+   * NOTE: Webcam view is mirrored - user's right hand appears on left side of image
    */
   private getOffHandWrist(landmarks: Landmarks, wandHand: WandHand): { x: number; y: number; z: number } | null {
+    // User selects their physical wand hand, but image is mirrored
+    // If user's wand hand is RIGHT (physical), it appears LEFT in image, so off-hand is RIGHT in image
     const index = wandHand === WandHand.RIGHT 
-      ? PoseLandmark.LEFT_WRIST 
-      : PoseLandmark.RIGHT_WRIST;
+      ? PoseLandmark.RIGHT_WRIST  // Physical left hand = image right
+      : PoseLandmark.LEFT_WRIST;   // Physical right hand = image left
     
     const landmark = landmarks.points[index];
     if (!landmark || landmark.visibility < 0.5) return null;
@@ -133,11 +147,14 @@ export class StrokeCapture {
 
   /**
    * Get wand wrist landmark
+   * NOTE: Webcam view is mirrored - user's right hand appears on left side of image
    */
   private getWandWrist(landmarks: Landmarks, wandHand: WandHand): { x: number; y: number; z: number } | null {
+    // User selects their physical wand hand, but image is mirrored
+    // If user's wand hand is RIGHT (physical), it appears LEFT in image
     const index = wandHand === WandHand.RIGHT 
-      ? PoseLandmark.RIGHT_WRIST 
-      : PoseLandmark.LEFT_WRIST;
+      ? PoseLandmark.LEFT_WRIST   // Physical right hand = image left
+      : PoseLandmark.RIGHT_WRIST;  // Physical left hand = image right
     
     const landmark = landmarks.points[index];
     if (!landmark || landmark.visibility < 0.5) return null;
@@ -174,6 +191,11 @@ export class StrokeCapture {
 
     // Add to stroke (raw positions for recognizer)
     this.stroke.points.push({ x, y });
+    
+    // Log first few points for debugging
+    if (this.stroke.points.length <= 3) {
+      console.log(`   📍 Wand point #${this.stroke.points.length}: (${x.toFixed(3)}, ${y.toFixed(3)})`);
+    }
 
     // Add to visual trail (will be lagged for smooth visual)
     this.wandTrail.push({ x, y, age: 0 });
