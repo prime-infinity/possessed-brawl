@@ -16,7 +16,7 @@ import { StrokeCapture } from './components/StrokeCapture';
 import { GestureRecognizer } from './components/GestureRecognizer';
 import { TemplateRecorder } from './components/TemplateRecorder';
 import { WandHandSelector, SelectionState } from './components/WandHandSelector';
-import { Landmarks, BaselineData, MoveType, DetectedMove, RecognizedSpell, OffHandState, WandHand } from './types';
+import { Landmarks, BaselineData, MoveType, DetectedMove, RecognizedSpell, OffHandState, WandHand, Stroke, SpellType } from './types';
 
 /**
  * Application state enumeration
@@ -70,6 +70,13 @@ export class Application {
   private lastRecognizedSpell: RecognizedSpell | null = null;
   private spellDisplayTimer: number = 0;
   private readonly SPELL_DISPLAY_DURATION = 2000; // 2 seconds
+  
+  // SKIP-CALIBRATION: Hardcoded wand hands
+  private readonly WAND_HAND = WandHand.RIGHT;
+  private readonly OFF_HAND = WandHand.LEFT;
+  private offHandArmed: boolean = false;
+  private currentTrail: { x: number; y: number }[] = [];
+  private spellOverlay: HTMLDivElement | null = null;
   
   // Simulated stamina for Stage 1 testing (will be replaced in Stage 2)
   private simulatedStamina: number = 100;
@@ -506,13 +513,279 @@ export class Application {
     // SKIP-CALIBRATION: Log wrist detection every second
     this.logWristDetection();
     
+    // SKIP-CALIBRATION: Spell casting logic
+    this.processSpellCasting(deltaTime);
+    
     // Step 4: Rendering
     this.render();
+  }
+  
+  /**
+   * Process spell casting (SKIP-CALIBRATION branch)
+   */
+  private processSpellCasting(deltaTime: number): void {
+    if (!this.currentLandmarks) return;
+    
+    const leftWrist = this.currentLandmarks.points[15]; // OFF-HAND
+    const rightWrist = this.currentLandmarks.points[16]; // WAND HAND
+    const leftShoulder = this.currentLandmarks.points[11];
+    const rightShoulder = this.currentLandmarks.points[12];
+    
+    if (!leftWrist || !rightWrist || !leftShoulder || !rightShoulder) return;
+    
+    const shoulderY = (leftShoulder.y + rightShoulder.y) / 2;
+    const offHandDelta = shoulderY - leftWrist.y;
+    const offHandRaised = offHandDelta > 0.0;
+    
+    // State machine for off-hand
+    if (offHandRaised && !this.offHandArmed) {
+      // Off-hand raised - ARM spell casting
+      this.offHandArmed = true;
+      this.currentTrail = [];
+      console.log('🔵 OFF-HAND ARMED - Ready to cast!');
+    } else if (!offHandRaised && this.offHandArmed) {
+      // Off-hand dropped - CAST spell
+      this.offHandArmed = false;
+      this.castSpell();
+    }
+    
+    // Record wand trail when armed
+    if (this.offHandArmed && rightWrist.visibility > 0.5) {
+      this.currentTrail.push({ x: rightWrist.x, y: rightWrist.y });
+      
+      // Limit trail length
+      if (this.currentTrail.length > 100) {
+        this.currentTrail.shift();
+      }
+    }
+    
+    // Update spell display timer
+    if (this.lastRecognizedSpell) {
+      this.spellDisplayTimer += deltaTime;
+      if (this.spellDisplayTimer > this.SPELL_DISPLAY_DURATION) {
+        this.lastRecognizedSpell = null;
+      }
+    }
+  }
+  
+  /**
+   * Cast spell - recognize gesture and display result
+   */
+  private castSpell(): void {
+    if (this.currentTrail.length < 10) {
+      console.log('❌ Trail too short - need at least 10 points');
+      return;
+    }
+    
+    console.log(`✨ CASTING SPELL with ${this.currentTrail.length} trail points...`);
+    
+    // Initialize gesture recognizer if not exists
+    if (!this.gestureRecognizer) {
+      this.gestureRecognizer = new GestureRecognizer();
+    }
+    
+    // Convert trail to Stroke format
+    const stroke: Stroke = {
+      points: this.currentTrail,
+      timestamp: Date.now()
+    };
+    
+    // Recognize the gesture
+    const result = this.gestureRecognizer.recognize(stroke);
+    
+    if (result) {
+      this.lastRecognizedSpell = result;
+      this.spellDisplayTimer = 0;
+      console.log(`🎯 SPELL RECOGNIZED: ${result.type} (confidence: ${(result.confidence * 100).toFixed(1)}%)`);
+    } else {
+      console.log('❌ No spell recognized');
+    }
+    
+    // Clear trail
+    this.currentTrail = [];
   }
   
   // Track last log time for wrist detection
   private lastWristLogTime: number = 0;
   private wristStatusOverlay: HTMLDivElement | null = null;
+  
+  /**
+   * Render skeleton and spell effects on canvas
+   */
+  private renderSkeletonAndSpells(): void {
+    if (!this.currentLandmarks) return;
+    
+    const ctx = this.canvas.getContext('2d');
+    if (!ctx) return;
+    
+    // Clear canvas
+    ctx.clearRect(0, 0, this.canvas.width, this.canvas.height);
+    
+    // Draw skeleton
+    this.drawSkeleton(ctx);
+    
+    // Draw wand trail (golden)
+    if (this.offHandArmed && this.currentTrail.length > 1) {
+      ctx.strokeStyle = 'rgba(255, 215, 0, 0.8)';
+      ctx.lineWidth = 3;
+      ctx.lineCap = 'round';
+      ctx.lineJoin = 'round';
+      
+      ctx.beginPath();
+      const first = this.normalizedToCanvas(this.currentTrail[0].x, this.currentTrail[0].y);
+      ctx.moveTo(first.x, first.y);
+      
+      for (let i = 1; i < this.currentTrail.length; i++) {
+        const point = this.normalizedToCanvas(this.currentTrail[i].x, this.currentTrail[i].y);
+        ctx.lineTo(point.x, point.y);
+      }
+      
+      ctx.stroke();
+    }
+    
+    // Draw blue glow on off-hand wrist when armed
+    if (this.offHandArmed) {
+      const leftWrist = this.currentLandmarks.points[15];
+      if (leftWrist && leftWrist.visibility > 0.5) {
+        const pos = this.normalizedToCanvas(leftWrist.x, leftWrist.y);
+        
+        // Outer glow
+        ctx.beginPath();
+        ctx.arc(pos.x, pos.y, 30, 0, Math.PI * 2);
+        ctx.fillStyle = 'rgba(0, 191, 255, 0.3)';
+        ctx.fill();
+        
+        // Inner glow
+        ctx.beginPath();
+        ctx.arc(pos.x, pos.y, 15, 0, Math.PI * 2);
+        ctx.fillStyle = 'rgba(0, 191, 255, 0.6)';
+        ctx.fill();
+        
+        // Core
+        ctx.beginPath();
+        ctx.arc(pos.x, pos.y, 5, 0, Math.PI * 2);
+        ctx.fillStyle = 'rgba(135, 206, 250, 1.0)';
+        ctx.fill();
+      }
+    }
+  }
+  
+  /**
+   * Draw skeleton stick figure
+   */
+  private drawSkeleton(ctx: CanvasRenderingContext2D): void {
+    if (!this.currentLandmarks) return;
+    
+    const points = this.currentLandmarks.points;
+    
+    // Helper to draw a line between two landmarks
+    const drawLine = (idx1: number, idx2: number, color: string = 'rgba(0, 255, 0, 0.6)', width: number = 2) => {
+      const p1 = points[idx1];
+      const p2 = points[idx2];
+      if (!p1 || !p2 || p1.visibility < 0.5 || p2.visibility < 0.5) return;
+      
+      const pos1 = this.normalizedToCanvas(p1.x, p1.y);
+      const pos2 = this.normalizedToCanvas(p2.x, p2.y);
+      
+      ctx.strokeStyle = color;
+      ctx.lineWidth = width;
+      ctx.beginPath();
+      ctx.moveTo(pos1.x, pos1.y);
+      ctx.lineTo(pos2.x, pos2.y);
+      ctx.stroke();
+    };
+    
+    // Helper to draw a point
+    const drawPoint = (idx: number, color: string = 'rgba(255, 255, 0, 0.8)', radius: number = 4) => {
+      const p = points[idx];
+      if (!p || p.visibility < 0.5) return;
+      
+      const pos = this.normalizedToCanvas(p.x, p.y);
+      
+      ctx.fillStyle = color;
+      ctx.beginPath();
+      ctx.arc(pos.x, pos.y, radius, 0, Math.PI * 2);
+      ctx.fill();
+    };
+    
+    // Torso
+    drawLine(11, 12); // Shoulders
+    drawLine(11, 23); // Left shoulder to hip
+    drawLine(12, 24); // Right shoulder to hip
+    drawLine(23, 24); // Hips
+    
+    // Left arm
+    drawLine(11, 13, 'rgba(0, 255, 255, 0.6)', 3); // Shoulder to elbow
+    drawLine(13, 15, 'rgba(0, 191, 255, 0.7)', 3); // Elbow to wrist (OFF-HAND)
+    
+    // Right arm
+    drawLine(12, 14, 'rgba(255, 215, 0, 0.6)', 3); // Shoulder to elbow
+    drawLine(14, 16, 'rgba(255, 215, 0, 0.7)', 3); // Elbow to wrist (WAND HAND)
+    
+    // Head
+    drawLine(0, 11); // Nose to left shoulder
+    drawLine(0, 12); // Nose to right shoulder
+    
+    // Key points
+    drawPoint(0, 'rgba(255, 100, 100, 0.9)', 6); // Nose
+    drawPoint(11, 'rgba(0, 255, 255, 0.9)', 5); // Left shoulder
+    drawPoint(12, 'rgba(255, 215, 0, 0.9)', 5); // Right shoulder
+    drawPoint(15, 'rgba(0, 191, 255, 1.0)', 7); // Left wrist (OFF-HAND)
+    drawPoint(16, 'rgba(255, 215, 0, 1.0)', 7); // Right wrist (WAND HAND)
+  }
+  
+  /**
+   * Convert normalized coordinates to canvas pixels
+   */
+  private normalizedToCanvas(x: number, y: number): { x: number; y: number } {
+    return {
+      x: x * this.canvas.width,
+      y: y * this.canvas.height
+    };
+  }
+  
+  /**
+   * Render spell result using HTML overlay
+   */
+  private renderSpellResultHTML(): void {
+    if (!this.lastRecognizedSpell) {
+      if (this.spellOverlay) {
+        this.spellOverlay.style.display = 'none';
+      }
+      return;
+    }
+    
+    // Create overlay if it doesn't exist
+    if (!this.spellOverlay) {
+      this.spellOverlay = document.createElement('div');
+      this.spellOverlay.style.cssText = `
+        position: fixed;
+        top: 50%;
+        left: 50%;
+        transform: translate(-50%, -50%);
+        background: rgba(0, 0, 0, 0.9);
+        color: white;
+        padding: 30px 50px;
+        border-radius: 15px;
+        font-family: Arial, sans-serif;
+        text-align: center;
+        z-index: 10000;
+        border: 3px solid #ffd700;
+      `;
+      document.body.appendChild(this.spellOverlay);
+    }
+    
+    this.spellOverlay.style.display = 'block';
+    
+    const spell = this.lastRecognizedSpell;
+    const emoji = spell.type === SpellType.SHIELD ? '🛡️' : spell.type === SpellType.LIGHTNING ? '⚡' : spell.type === SpellType.FIREBALL ? '🔥' : '❄️';
+    
+    this.spellOverlay.innerHTML = `
+      <div style="font-size: 64px; margin-bottom: 10px;">${emoji}</div>
+      <div style="font-size: 32px; font-weight: bold; color: #ffd700; margin-bottom: 10px;">${spell.type}</div>
+      <div style="font-size: 18px; color: #aaa;">Confidence: ${(spell.confidence * 100).toFixed(1)}%</div>
+    `;
+  }
   
   /**
    * Render wrist status using HTML overlay (smaller, cleaner)
@@ -550,36 +823,32 @@ export class Application {
     const rightShoulder = this.currentLandmarks.points[12]; // RIGHT_SHOULDER
     const shoulderY = (leftShoulder.y + rightShoulder.y) / 2;
     
-    let html = '<div style="color: #00ff00; font-weight: bold; margin-bottom: 8px;">SKIP-CALIBRATION MODE</div>';
-    html += '<div style="color: #ffff00; font-size: 10px; margin-bottom: 8px;">⚡ Lowered threshold: wrist at/above shoulder</div>';
+    let html = '<div style="color: #00ff00; font-weight: bold; margin-bottom: 8px;">🧙 SPELL CASTING MODE</div>';
+    html += '<div style="color: #ffff00; font-size: 10px; margin-bottom: 8px;">Right=Wand | Left=Off-hand | Raise left to arm</div>';
     
-    // Left wrist
+    // Off-hand status (LEFT)
     if (leftWrist && leftWrist.visibility > 0.5) {
       const leftDelta = shoulderY - leftWrist.y;
-      const leftRaised = leftDelta > 0.0; // LOWERED from 0.1 to 0.0
-      const color = leftRaised ? '#ffd700' : '#00bfff';
-      const status = leftRaised ? '⬆️ RAISED' : '⬇️ DOWN';
-      html += `<div style="color: ${color}; font-weight: bold;">LEFT: ${status}</div>`;
+      const leftRaised = leftDelta > 0.0;
+      const status = this.offHandArmed ? '🔵 ARMED' : (leftRaised ? '⬆️ UP' : '⬇️ DOWN');
+      const color = this.offHandArmed ? '#00bfff' : (leftRaised ? '#ffd700' : '#888');
+      html += `<div style="color: ${color}; font-weight: bold;">OFF-HAND: ${status}</div>`;
       html += `<div style="color: #888; font-size: 10px; margin-left: 10px;">vis: ${(leftWrist.visibility * 100).toFixed(0)}% | delta: ${leftDelta.toFixed(3)}</div>`;
     } else {
-      html += '<div style="color: #ff6b6b;">LEFT: ❌ NOT DETECTED</div>';
+      html += '<div style="color: #ff6b6b;">OFF-HAND: ❌ NOT DETECTED</div>';
     }
     
     html += '<div style="margin: 5px 0;"></div>';
     
-    // Right wrist
+    // Wand hand status (RIGHT)
     if (rightWrist && rightWrist.visibility > 0.5) {
-      const rightDelta = shoulderY - rightWrist.y;
-      const rightRaised = rightDelta > 0.0; // LOWERED from 0.1 to 0.0
-      const color = rightRaised ? '#ffd700' : '#00bfff';
-      const status = rightRaised ? '⬆️ RAISED' : '⬇️ DOWN';
-      html += `<div style="color: ${color}; font-weight: bold;">RIGHT: ${status}</div>`;
-      html += `<div style="color: #888; font-size: 10px; margin-left: 10px;">vis: ${(rightWrist.visibility * 100).toFixed(0)}% | delta: ${rightDelta.toFixed(3)}</div>`;
+      html += `<div style="color: #ffd700; font-weight: bold;">WAND: ${this.offHandArmed ? '✏️ DRAWING' : '⚪ IDLE'}</div>`;
+      html += `<div style="color: #888; font-size: 10px; margin-left: 10px;">trail: ${this.currentTrail.length} points</div>`;
     } else {
-      html += '<div style="color: #ff6b6b;">RIGHT: ❌ NOT DETECTED</div>';
+      html += '<div style="color: #ff6b6b;">WAND: ❌ NOT DETECTED</div>';
     }
     
-    html += '<div style="color: #666; font-size: 10px; margin-top: 8px;">Console logs detailed body tracking</div>';
+    html += '<div style="color: #666; font-size: 10px; margin-top: 8px;">Drop left hand to cast</div>';
     
     this.wristStatusOverlay.innerHTML = html;
   }
@@ -873,8 +1142,10 @@ export class Application {
         this.displayBaselineData();
       }
     } else if (this.state === AppState.ACTIVE) {
-      // SKIP-CALIBRATION: Show wrist detection status using HTML overlay
+      // SKIP-CALIBRATION: Render skeleton + spell effects
+      this.renderSkeletonAndSpells();
       this.renderWristStatusHTML();
+      this.renderSpellResultHTML();
     }
   }
 
@@ -947,6 +1218,12 @@ export class Application {
     if (this.wristStatusOverlay && this.wristStatusOverlay.parentNode) {
       this.wristStatusOverlay.parentNode.removeChild(this.wristStatusOverlay);
       this.wristStatusOverlay = null;
+    }
+    
+    // Clean up spell overlay
+    if (this.spellOverlay && this.spellOverlay.parentNode) {
+      this.spellOverlay.parentNode.removeChild(this.spellOverlay);
+      this.spellOverlay = null;
     }
     
     this.state = AppState.NOT_STARTED;
