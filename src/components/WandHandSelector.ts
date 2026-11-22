@@ -30,6 +30,9 @@ export class WandHandSelector {
   private verifiedWandHand: boolean = false;
   private verifiedOffHand: boolean = false;
   
+  // Track which physical hand was verified as wand hand (locked)
+  private verifiedWandHandSide: WandHand | null = null;
+  
   private overlay: HTMLDivElement | null = null;
   
   constructor(config: WandHandSelectorConfig) {
@@ -130,28 +133,56 @@ export class WandHandSelector {
       case SelectionState.VERIFY_WAND_HAND:
         this.overlay.innerHTML = `
           <div style="text-align: center;">
-            <h1 style="font-size: 36px; margin-bottom: 20px;">Raise your WAND HAND</h1>
-            <p style="font-size: 24px; color: #00ff41;">
-              (Your ${this.selectedWandHand?.toUpperCase()} hand)
-            </p>
-            <p style="font-size: 18px; color: #aaa; margin-top: 40px;">
-              Detecting...
+            <div style="
+              background: rgba(255, 215, 0, 0.2);
+              border: 4px solid #ffd700;
+              border-radius: 20px;
+              padding: 60px;
+              margin-bottom: 40px;
+            ">
+              <h1 style="font-size: 48px; margin: 0; color: #ffd700;">
+                ✋ RAISE YOUR WAND HAND
+              </h1>
+              <p style="font-size: 32px; color: #00ff41; margin: 20px 0 0 0; font-weight: bold;">
+                (Your ${this.selectedWandHand?.toUpperCase()} hand)
+              </p>
+            </div>
+            <p style="font-size: 20px; color: #aaa;">
+              Waiting for detection...
             </p>
           </div>
         `;
         break;
         
       case SelectionState.VERIFY_OFF_HAND:
+        const offHandSide = this.selectedWandHand === WandHand.RIGHT ? 'LEFT' : 'RIGHT';
         this.overlay.innerHTML = `
           <div style="text-align: center;">
-            <h1 style="font-size: 36px; margin-bottom: 20px;">Now raise your OTHER hand</h1>
-            <p style="font-size: 24px; color: #00bfff;">
-              (Your ${this.selectedWandHand === WandHand.RIGHT ? 'LEFT' : 'RIGHT'} hand)
-            </p>
-            <p style="font-size: 18px; color: #aaa; margin-top: 40px;">
-              Detecting...
+            <div style="
+              background: rgba(0, 191, 255, 0.2);
+              border: 4px solid #00bfff;
+              border-radius: 20px;
+              padding: 60px;
+              margin-bottom: 40px;
+              animation: pulse 1.5s infinite;
+            ">
+              <h1 style="font-size: 48px; margin: 0; color: #00bfff;">
+                🖐️ NOW RAISE YOUR OTHER HAND
+              </h1>
+              <p style="font-size: 32px; color: #ff6b6b; margin: 20px 0 0 0; font-weight: bold;">
+                (Your ${offHandSide} hand)
+              </p>
+            </div>
+            <p style="font-size: 20px; color: #aaa;">
+              Waiting for detection...
             </p>
           </div>
+          <style>
+            @keyframes pulse {
+              0%, 100% { transform: scale(1); }
+              50% { transform: scale(1.05); }
+            }
+          </style>
         `;
         break;
         
@@ -184,15 +215,17 @@ export class WandHandSelector {
     console.log(`   Left wrist Y: ${leftWrist.y.toFixed(3)}, Shoulder Y: ${shoulderY.toFixed(3)}, Raised: ${leftRaised}`);
     console.log(`   Right wrist Y: ${rightWrist.y.toFixed(3)}, Shoulder Y: ${shoulderY.toFixed(3)}, Raised: ${rightRaised}`);
     
-    // Verify correct hand is raised
+    // Verify correct hand is raised (and only that hand)
     if (this.selectedWandHand === WandHand.LEFT && leftRaised && !rightRaised) {
       console.log('✅ LEFT wand hand verified!');
       this.verifiedWandHand = true;
+      this.verifiedWandHandSide = WandHand.LEFT; // Lock this side
       this.state = SelectionState.VERIFY_OFF_HAND;
       this.updateUI();
     } else if (this.selectedWandHand === WandHand.RIGHT && rightRaised && !leftRaised) {
       console.log('✅ RIGHT wand hand verified!');
       this.verifiedWandHand = true;
+      this.verifiedWandHandSide = WandHand.RIGHT; // Lock this side
       this.state = SelectionState.VERIFY_OFF_HAND;
       this.updateUI();
     }
@@ -202,7 +235,7 @@ export class WandHandSelector {
    * Verify off-hand is raised
    */
   private verifyOffHand(landmarks: Landmarks): void {
-    if (!this.selectedWandHand) return;
+    if (!this.selectedWandHand || !this.verifiedWandHandSide) return;
     
     const leftWrist = landmarks.points[PoseLandmark.LEFT_WRIST];
     const rightWrist = landmarks.points[PoseLandmark.RIGHT_WRIST];
@@ -221,12 +254,16 @@ export class WandHandSelector {
     console.log(`   Left wrist Y: ${leftWrist.y.toFixed(3)}, Raised: ${leftRaised}`);
     console.log(`   Right wrist Y: ${rightWrist.y.toFixed(3)}, Raised: ${rightRaised}`);
     
-    // Verify OPPOSITE hand is raised
-    if (this.selectedWandHand === WandHand.LEFT && rightRaised && !leftRaised) {
+    // IMPORTANT: Ignore the verified wand hand side, only check the OTHER side
+    // This ensures we don't re-assign the already verified wand hand
+    const expectedOffHandSide = this.verifiedWandHandSide === WandHand.LEFT ? WandHand.RIGHT : WandHand.LEFT;
+    
+    // Verify OPPOSITE hand is raised (and wand hand is NOT raised)
+    if (expectedOffHandSide === WandHand.RIGHT && rightRaised && !leftRaised) {
       console.log('✅ RIGHT off-hand verified!');
       this.verifiedOffHand = true;
       this.complete();
-    } else if (this.selectedWandHand === WandHand.RIGHT && leftRaised && !rightRaised) {
+    } else if (expectedOffHandSide === WandHand.LEFT && leftRaised && !rightRaised) {
       console.log('✅ LEFT off-hand verified!');
       this.verifiedOffHand = true;
       this.complete();

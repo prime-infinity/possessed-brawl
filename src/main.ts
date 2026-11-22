@@ -244,7 +244,8 @@ export class Application {
   /**
    * Start the application
    * 
-   * Initializes pose detection and begins the calibration flow.
+   * SKIP-CALIBRATION BRANCH: Skip hand selection and calibration entirely.
+   * Just log wrist detection in real-time.
    * 
    * **Validates: Requirements 1.1, 2.1**
    */
@@ -256,7 +257,7 @@ export class Application {
     
     try {
       this.state = AppState.INITIALIZING;
-      console.log('Starting application...');
+      console.log('Starting application (SKIP-CALIBRATION mode)...');
       
       // Hide loading screen
       this.loadingScreen.classList.remove('active');
@@ -270,19 +271,11 @@ export class Application {
       this.canvas.classList.add('active');
       this.showVideoPreview();
       
-      // Start hand selection
-      this.state = AppState.SELECTING_HANDS;
-      this.wandHandSelector = new WandHandSelector({
-        canvas: this.canvas,
-        onComplete: (wandHand: WandHand, verified: boolean) => {
-          console.log(`Hand selection complete: ${wandHand}, verified: ${verified}`);
-          // Set wand hand in calibrator
-          this.calibrator.selectWandHand(wandHand);
-          // Start calibration
-          this.startCalibration();
-        }
-      });
-      this.wandHandSelector.start();
+      // SKIP hand selection and calibration - go directly to active state
+      console.log('⚠️ SKIPPING hand selection and calibration');
+      console.log('📊 Will log wrist detection every second...');
+      this.state = AppState.ACTIVE;
+      this.calibrationCompleted = true;
       
       // Start main loop
       this.isRunning = true;
@@ -497,10 +490,7 @@ export class Application {
     
     if (!rawLandmarks) {
       // No pose detected this frame
-      // Still render calibration UI if in calibration state
-      if (this.state === AppState.CALIBRATING) {
-        this.render();
-      }
+      this.render();
       return;
     }
     
@@ -513,23 +503,164 @@ export class Application {
     
     this.previousLandmarks = this.currentLandmarks;
     
-    // Step 2: Calibration (if in calibration state)
-    if (this.state === AppState.CALIBRATING) {
-      this.processCalibration();
-    }
-    
-    // Step 2.5: Hand selection (if in selection state)
-    if (this.state === AppState.SELECTING_HANDS && this.wandHandSelector) {
-      this.wandHandSelector.update(this.currentLandmarks);
-    }
-    
-    // Step 3: Move Recognition (if calibrated and active)
-    if (this.state === AppState.ACTIVE && this.baseline) {
-      this.processMoveRecognition(deltaTime);
-    }
+    // SKIP-CALIBRATION: Log wrist detection every second
+    this.logWristDetection();
     
     // Step 4: Rendering
     this.render();
+  }
+  
+  // Track last log time for wrist detection
+  private lastWristLogTime: number = 0;
+  private wristStatusOverlay: HTMLDivElement | null = null;
+  
+  /**
+   * Render wrist status using HTML overlay (smaller, cleaner)
+   */
+  private renderWristStatusHTML(): void {
+    if (!this.currentLandmarks) {
+      if (this.wristStatusOverlay) {
+        this.wristStatusOverlay.innerHTML = '<div style="color: #ff6b6b;">❌ No pose detected</div>';
+      }
+      return;
+    }
+    
+    // Create overlay if it doesn't exist
+    if (!this.wristStatusOverlay) {
+      this.wristStatusOverlay = document.createElement('div');
+      this.wristStatusOverlay.style.cssText = `
+        position: fixed;
+        top: 10px;
+        left: 10px;
+        background: rgba(0, 0, 0, 0.85);
+        color: white;
+        padding: 10px 15px;
+        border-radius: 8px;
+        font-family: monospace;
+        font-size: 12px;
+        z-index: 9999;
+        line-height: 1.5;
+      `;
+      document.body.appendChild(this.wristStatusOverlay);
+    }
+    
+    const leftWrist = this.currentLandmarks.points[15]; // LEFT_WRIST
+    const rightWrist = this.currentLandmarks.points[16]; // RIGHT_WRIST
+    const leftShoulder = this.currentLandmarks.points[11]; // LEFT_SHOULDER
+    const rightShoulder = this.currentLandmarks.points[12]; // RIGHT_SHOULDER
+    const shoulderY = (leftShoulder.y + rightShoulder.y) / 2;
+    
+    let html = '<div style="color: #00ff00; font-weight: bold; margin-bottom: 8px;">SKIP-CALIBRATION MODE</div>';
+    html += '<div style="color: #ffff00; font-size: 10px; margin-bottom: 8px;">⚡ Lowered threshold: wrist at/above shoulder</div>';
+    
+    // Left wrist
+    if (leftWrist && leftWrist.visibility > 0.5) {
+      const leftDelta = shoulderY - leftWrist.y;
+      const leftRaised = leftDelta > 0.0; // LOWERED from 0.1 to 0.0
+      const color = leftRaised ? '#ffd700' : '#00bfff';
+      const status = leftRaised ? '⬆️ RAISED' : '⬇️ DOWN';
+      html += `<div style="color: ${color}; font-weight: bold;">LEFT: ${status}</div>`;
+      html += `<div style="color: #888; font-size: 10px; margin-left: 10px;">vis: ${(leftWrist.visibility * 100).toFixed(0)}% | delta: ${leftDelta.toFixed(3)}</div>`;
+    } else {
+      html += '<div style="color: #ff6b6b;">LEFT: ❌ NOT DETECTED</div>';
+    }
+    
+    html += '<div style="margin: 5px 0;"></div>';
+    
+    // Right wrist
+    if (rightWrist && rightWrist.visibility > 0.5) {
+      const rightDelta = shoulderY - rightWrist.y;
+      const rightRaised = rightDelta > 0.0; // LOWERED from 0.1 to 0.0
+      const color = rightRaised ? '#ffd700' : '#00bfff';
+      const status = rightRaised ? '⬆️ RAISED' : '⬇️ DOWN';
+      html += `<div style="color: ${color}; font-weight: bold;">RIGHT: ${status}</div>`;
+      html += `<div style="color: #888; font-size: 10px; margin-left: 10px;">vis: ${(rightWrist.visibility * 100).toFixed(0)}% | delta: ${rightDelta.toFixed(3)}</div>`;
+    } else {
+      html += '<div style="color: #ff6b6b;">RIGHT: ❌ NOT DETECTED</div>';
+    }
+    
+    html += '<div style="color: #666; font-size: 10px; margin-top: 8px;">Console logs detailed body tracking</div>';
+    
+    this.wristStatusOverlay.innerHTML = html;
+  }
+  
+  /**
+   * Log wrist detection status (every 1 second)
+   */
+  private logWristDetection(): void {
+    if (!this.currentLandmarks) return;
+    
+    const currentTime = performance.now();
+    if (currentTime - this.lastWristLogTime < 1000) return; // Log every 1 second
+    
+    this.lastWristLogTime = currentTime;
+    
+    const leftWrist = this.currentLandmarks.points[15]; // LEFT_WRIST
+    const rightWrist = this.currentLandmarks.points[16]; // RIGHT_WRIST
+    const leftElbow = this.currentLandmarks.points[13]; // LEFT_ELBOW
+    const rightElbow = this.currentLandmarks.points[14]; // RIGHT_ELBOW
+    const leftShoulder = this.currentLandmarks.points[11]; // LEFT_SHOULDER
+    const rightShoulder = this.currentLandmarks.points[12]; // RIGHT_SHOULDER
+    const nose = this.currentLandmarks.points[0]; // NOSE
+    
+    const shoulderY = (leftShoulder.y + rightShoulder.y) / 2;
+    
+    console.log('═══════════════════════════════════════');
+    console.log('👋 COMPREHENSIVE BODY TRACKING');
+    console.log('═══════════════════════════════════════');
+    
+    // NOSE
+    if (nose) {
+      console.log(`NOSE: (${nose.x.toFixed(3)}, ${nose.y.toFixed(3)}) | vis: ${nose.visibility.toFixed(3)}`);
+    }
+    console.log('');
+    
+    // SHOULDERS
+    console.log(`SHOULDERS:`);
+    console.log(`  Left:  (${leftShoulder.x.toFixed(3)}, ${leftShoulder.y.toFixed(3)}) | vis: ${leftShoulder.visibility.toFixed(3)}`);
+    console.log(`  Right: (${rightShoulder.x.toFixed(3)}, ${rightShoulder.y.toFixed(3)}) | vis: ${rightShoulder.visibility.toFixed(3)}`);
+    console.log(`  Average Y: ${shoulderY.toFixed(3)}`);
+    console.log('');
+    
+    // ELBOWS
+    console.log(`ELBOWS:`);
+    if (leftElbow) {
+      const leftElbowDelta = shoulderY - leftElbow.y;
+      console.log(`  Left:  (${leftElbow.x.toFixed(3)}, ${leftElbow.y.toFixed(3)}) | vis: ${leftElbow.visibility.toFixed(3)} | delta: ${leftElbowDelta.toFixed(3)}`);
+    } else {
+      console.log(`  Left: ❌ NOT DETECTED`);
+    }
+    if (rightElbow) {
+      const rightElbowDelta = shoulderY - rightElbow.y;
+      console.log(`  Right: (${rightElbow.x.toFixed(3)}, ${rightElbow.y.toFixed(3)}) | vis: ${rightElbow.visibility.toFixed(3)} | delta: ${rightElbowDelta.toFixed(3)}`);
+    } else {
+      console.log(`  Right: ❌ NOT DETECTED`);
+    }
+    console.log('');
+    
+    // WRISTS (detailed)
+    console.log(`WRISTS:`);
+    if (leftWrist) {
+      const leftDelta = shoulderY - leftWrist.y;
+      const leftRaised = leftDelta > 0.0; // LOWERED THRESHOLD from 0.1 to 0.0
+      console.log(`  Left:  (${leftWrist.x.toFixed(3)}, ${leftWrist.y.toFixed(3)}, z:${leftWrist.z.toFixed(3)}) | vis: ${leftWrist.visibility.toFixed(3)}`);
+      console.log(`         Delta from shoulder: ${leftDelta.toFixed(3)} | ${leftRaised ? '⬆️ RAISED' : '⬇️ DOWN'}`);
+    } else {
+      console.log(`  Left: ❌ NOT DETECTED`);
+    }
+    
+    if (rightWrist) {
+      const rightDelta = shoulderY - rightWrist.y;
+      const rightRaised = rightDelta > 0.0; // LOWERED THRESHOLD from 0.1 to 0.0
+      console.log(`  Right: (${rightWrist.x.toFixed(3)}, ${rightWrist.y.toFixed(3)}, z:${rightWrist.z.toFixed(3)}) | vis: ${rightWrist.visibility.toFixed(3)}`);
+      console.log(`         Delta from shoulder: ${rightDelta.toFixed(3)} | ${rightRaised ? '⬆️ RAISED' : '⬇️ DOWN'}`);
+    } else {
+      console.log(`  Right: ❌ NOT DETECTED`);
+    }
+    
+    console.log('');
+    console.log(`💡 TIP: Wrist just needs to be at/above shoulder level (delta > 0.0)`);
+    console.log('═══════════════════════════════════════');
   }
 
   /**
@@ -742,8 +873,8 @@ export class Application {
         this.displayBaselineData();
       }
     } else if (this.state === AppState.ACTIVE) {
-      // Renderer handles its own rendering in requestAnimationFrame loop
-      // We just need to update the state (done in processMoveRecognition)
+      // SKIP-CALIBRATION: Show wrist detection status using HTML overlay
+      this.renderWristStatusHTML();
     }
   }
 
@@ -810,6 +941,12 @@ export class Application {
     if (this.performanceWarning && this.performanceWarning.parentNode) {
       this.performanceWarning.parentNode.removeChild(this.performanceWarning);
       this.performanceWarning = null;
+    }
+    
+    // Clean up wrist status overlay
+    if (this.wristStatusOverlay && this.wristStatusOverlay.parentNode) {
+      this.wristStatusOverlay.parentNode.removeChild(this.wristStatusOverlay);
+      this.wristStatusOverlay = null;
     }
     
     this.state = AppState.NOT_STARTED;
