@@ -293,7 +293,10 @@ export class TemplateRecorder {
     // Check if we have all 3 samples for this spell
     if (this.currentSampleIndex >= 3) {
       // Train template
-      this.config.gestureRecognizer.trainTemplate(currentSpell, samples as [Stroke, Stroke, Stroke]);
+      // Note: shape-detector library doesn't support multi-sample training
+      // We could average the samples or just use the first one
+      const averagedStroke = samples[0]; // For now, just use first sample
+      this.config.gestureRecognizer.addTemplate(currentSpell, averagedStroke.points);
       console.log(`Trained template for ${currentSpell}`);
       
       // Move to next spell

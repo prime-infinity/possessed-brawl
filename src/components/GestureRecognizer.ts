@@ -1,551 +1,225 @@
 /**
- * $1 Unistroke Recognizer for Spell Duel
+ * Gesture Recognizer Component for Spell Duel
  * 
- * Implements the $1 Unistroke Recognizer algorithm by Wobbrock, Wilson, and Li (2007).
- * Provides rotation, scale, and position-invariant gesture recognition for spell casting.
+ * Uses shape-detector library for reliable $1 Unistroke Recognition.
+ * Recognizes spell gestures from wand trail coordinates.
  * 
- * **Validates: Requirements 8.1-8.9, 9.1-9.8**
- * 
- * Algorithm: Resample → Rotate → Scale → Translate → Compare
- * 
- * @see https://depts.washington.edu/acelab/proj/dollar/index.html
+ * **Validates: Requirements 8.1-8.11**
  */
 
-import { Stroke, RecognizedSpell, SpellType, SpellTemplate } from '../types';
-import {
-  GestureRecognizerConfig,
-  DEFAULT_GESTURE_RECOGNIZER_CONFIG
-} from '../types/spell';
+// @ts-ignore - shape-detector has no type definitions
+import ShapeDetector from 'shape-detector';
+import { Stroke, RecognizedSpell, SpellType } from '../types';
 
 /**
- * Gesture recognizer using $1 Unistroke algorithm
+ * Configuration for gesture recognition
+ */
+export interface GestureRecognizerConfig {
+  rejectionThreshold: number;  // Maximum distance to accept a match (0-1, lower = stricter)
+}
+
+export const DEFAULT_GESTURE_RECOGNIZER_CONFIG: GestureRecognizerConfig = {
+  rejectionThreshold: 0.2  // Lower threshold - accept weaker matches
+};
+
+/**
+ * GestureRecognizer using shape-detector library
+ * 
+ * Handles spell recognition from wand stroke data using the battle-tested
+ * shape-detector implementation of the $1 Unistroke Recognizer algorithm.
  */
 export class GestureRecognizer {
+  private detector: any;  // ShapeDetector instance
   private config: GestureRecognizerConfig;
-  private templates: Map<SpellType, SpellTemplate>;
-  private readonly STORAGE_KEY = 'spell_duel_templates';
+  private useTrainedTemplates: boolean = false;
 
   constructor(config: Partial<GestureRecognizerConfig> = {}) {
     this.config = { ...DEFAULT_GESTURE_RECOGNIZER_CONFIG, ...config };
-    this.templates = new Map();
+    
+    // ShapeDetector requires patterns array in constructor
+    // We'll initialize with empty array and add patterns via learn()
+    this.detector = new ShapeDetector([]);
+    
+    // Load templates
     this.loadTemplates();
   }
 
   /**
-   * Recognize a stroke and return the best matching spell
-   * 
-   * **Validates: Requirements 8.1, 8.6, 8.7, 8.8**
+   * Load default or trained templates
    */
-  recognize(stroke: Stroke): RecognizedSpell {
-    // Validate stroke
-    if (!stroke || stroke.points.length < 2) {
-      console.log('❌ Recognition: Invalid stroke (too few points)');
-      return this.createFizzleResult();
-    }
-
-    console.log(`📊 $1 Recognition Pipeline:`);
-    console.log(`   Raw points: ${stroke.points.length}`);
-
-    // Step 1: Resample to N points
-    let points = this.resample(stroke.points, this.config.resamplePoints);
-    console.log(`   After resample: ${points.length} points`);
-    console.log(`   Resampled shape: first=(${points[0].x.toFixed(3)},${points[0].y.toFixed(3)}), mid=(${points[32].x.toFixed(3)},${points[32].y.toFixed(3)}), last=(${points[63].x.toFixed(3)},${points[63].y.toFixed(3)})`);
-
-    // Step 2: Rotate to indicative angle (0°)
-    points = this.rotateToZero(points);
-    console.log(`   Rotated to normalize orientation`);
-    console.log(`   After rotation: first=(${points[0].x.toFixed(3)},${points[0].y.toFixed(3)}), mid=(${points[32].x.toFixed(3)},${points[32].y.toFixed(3)}), last=(${points[63].x.toFixed(3)},${points[63].y.toFixed(3)})`);
-
-    // Step 3: Scale to reference square
-    points = this.scaleToSquare(points, this.config.referenceSize);
-    console.log(`   Scaled to reference square (${this.config.referenceSize})`);
-    console.log(`   After scaling: first=(${points[0].x.toFixed(3)},${points[0].y.toFixed(3)}), mid=(${points[32].x.toFixed(3)},${points[32].y.toFixed(3)}), last=(${points[63].x.toFixed(3)},${points[63].y.toFixed(3)})`);
-
-    // Step 4: Translate to origin
-    points = this.translateToOrigin(points);
-    console.log(`   Translated to origin`);
-    console.log(`   Final normalized: first=(${points[0].x.toFixed(3)},${points[0].y.toFixed(3)}), mid=(${points[32].x.toFixed(3)},${points[32].y.toFixed(3)}), last=(${points[63].x.toFixed(3)},${points[63].y.toFixed(3)})`);
-
-
-    // Step 5: Compare to all templates
-    let bestMatch: SpellType | null = null;
-    let bestDistance = Infinity;
-    const distances: { type: SpellType; distance: number }[] = [];
-
-    for (const [spellType, template] of this.templates) {
-      if (spellType === SpellType.FIZZLE) continue;
-
-      const distance = this.pathDistance(points, template.points);
-      distances.push({ type: spellType, distance });
-      
-      if (distance < bestDistance) {
-        bestDistance = distance;
-        bestMatch = spellType;
+  private loadTemplates(): void {
+    // Try to load trained templates from localStorage
+    const trained = localStorage.getItem('trainedTemplates');
+    
+    if (trained) {
+      try {
+        const templates = JSON.parse(trained);
+        this.useTrainedTemplates = true;
+        console.log('Loaded trained templates from localStorage');
+        
+        // Add each trained template
+        for (const [spellType, template] of Object.entries(templates)) {
+          if (spellType !== 'fizzle') {
+            this.detector.learn(spellType, (template as any).points);
+          }
+        }
+      } catch (error) {
+        console.warn('Failed to load trained templates, using defaults', error);
+        this.loadDefaultTemplates();
       }
+    } else {
+      this.loadDefaultTemplates();
     }
+  }
 
-    console.log(`   Distances to templates:`, distances.map(d => `${d.type}=${d.distance.toFixed(3)}`).join(', '));
-    console.log(`   Rejection threshold: ${this.config.rejectionThreshold}`);
+  /**
+   * Load default templates
+   */
+  private loadDefaultTemplates(): void {
+    console.log('Loading default spell templates');
+    
+    // Define templates inline for the 4 core spells
+    // User gestures are in normalized coordinates (0-1 range)
+    // Templates should match this scale
+    
+    // SHIELD: Circle (clockwise from top)
+    const shieldPoints: Array<{x: number, y: number}> = [];
+    for (let i = 0; i < 32; i++) {
+      const angle = (i / 32) * Math.PI * 2;
+      shieldPoints.push({
+        x: Math.cos(angle) * 0.1 + 0.5,  // Circle radius 0.1, centered at 0.5
+        y: Math.sin(angle) * 0.1 + 0.5
+      });
+    }
+    this.detector.learn('shield', shieldPoints);
+    
+    // LIGHTNING: Zigzag (down-right-down-right pattern)
+    const lightningPoints: Array<{x: number, y: number}> = [
+      {x: 0.5, y: 0.3},   // Top
+      {x: 0.6, y: 0.45},  // Down-right
+      {x: 0.4, y: 0.6},   // Down-left
+      {x: 0.5, y: 0.75}   // Down-right
+    ];
+    this.detector.learn('lightning', lightningPoints);
+    
+    // FIREBALL: Horizontal line (left to right)
+    const fireballPoints: Array<{x: number, y: number}> = [];
+    for (let i = 0; i < 32; i++) {
+      fireballPoints.push({
+        x: 0.3 + (i / 31) * 0.4,  // Line from 0.3 to 0.7
+        y: 0.5
+      });
+    }
+    this.detector.learn('fireball', fireballPoints);
+    
+    // FROST: V shape (down-left then down-right)
+    const frostPoints: Array<{x: number, y: number}> = [
+      {x: 0.4, y: 0.3},   // Top-left
+      {x: 0.5, y: 0.6},   // Bottom point
+      {x: 0.6, y: 0.3}    // Top-right
+    ];
+    this.detector.learn('frost', frostPoints);
+  }
 
-    // Step 6: Reject if distance too high
-    if (bestDistance > this.config.rejectionThreshold || bestMatch === null) {
-      console.log(`   ❌ REJECTED: Best distance ${bestDistance.toFixed(3)} > threshold ${this.config.rejectionThreshold}`);
+  /**
+   * Recognize a spell from a wand stroke
+   * 
+   * @param stroke - The wand trail stroke to recognize
+   * @returns Recognized spell with confidence, or null if rejected
+   */
+  recognize(stroke: Stroke): RecognizedSpell | null {
+    console.log('═══════════════════════════════════════');
+    console.log('✨ SHAPE-DETECTOR RECOGNITION');
+    console.log('═══════════════════════════════════════');
+    console.log(`📝 Input: ${stroke.points.length} points`);
+    
+    if (stroke.points.length < 10) {
+      console.log('❌ Too few points (need at least 10)');
+      console.log('═══════════════════════════════════════');
       return this.createFizzleResult();
     }
 
-    // Step 7: Calculate confidence
-    const confidence = Math.max(0, 1 - bestDistance / this.config.rejectionThreshold);
-
-    console.log(`   ✅ MATCHED: ${bestMatch} with distance ${bestDistance.toFixed(3)}, confidence ${(confidence * 100).toFixed(1)}%`);
-
+    // Convert to shape-detector format (array of {x, y} points)
+    const points = stroke.points.map((p: { x: number; y: number }) => ({ x: p.x, y: p.y }));
+    
+    // Recognize using shape-detector's spot() method
+    const result = this.detector.spot(points);
+    
+    console.log(`🎯 Shape-detector result:`, result);
+    
+    if (!result || !result.pattern) {
+      console.log('❌ No match found');
+      console.log('═══════════════════════════════════════');
+      return this.createFizzleResult();
+    }
+    
+    // Shape-detector returns score 0-1 (higher = better match)
+    const score = result.score;
+    
+    console.log(`   Matched: ${result.pattern}`);
+    console.log(`   Score: ${score.toFixed(4)}`);
+    console.log(`   Rejection threshold: ${this.config.rejectionThreshold}`);
+    
+    // Check rejection threshold (score should be ABOVE threshold)
+    if (score < this.config.rejectionThreshold) {
+      console.log(`❌ REJECTED: score ${score.toFixed(3)} < threshold ${this.config.rejectionThreshold}`);
+      console.log('═══════════════════════════════════════');
+      return this.createFizzleResult();
+    }
+    
+    // Map gesture name to SpellType
+    const spellType = this.mapNameToSpellType(result.pattern);
+    
+    // Confidence is directly the score (0-1)
+    const confidence = score;
+    
+    console.log(`✅ ACCEPTED: ${spellType} with confidence ${(confidence * 100).toFixed(1)}%`);
+    console.log('═══════════════════════════════════════');
+    
     return {
-      type: bestMatch,
+      type: spellType,
       confidence,
-      matchScore: bestDistance,
+      matchScore: score,
       timestamp: Date.now()
     };
   }
 
   /**
-   * Resample stroke to N evenly-spaced points
-   * 
-   * **Validates: Requirement 8.2**
+   * Map shape-detector gesture name to SpellType
    */
-  private resample(points: { x: number; y: number }[], n: number): { x: number; y: number }[] {
-    const pathLength = this.calculatePathLength(points);
-    const interval = pathLength / (n - 1);
-    let distanceSoFar = 0;
-
-    const resampled: { x: number; y: number }[] = [points[0]];
-
-    for (let i = 1; i < points.length; i++) {
-      const prev = points[i - 1];
-      const curr = points[i];
-      const d = this.distance(prev, curr);
-
-      if (distanceSoFar + d >= interval) {
-        const qx = prev.x + ((interval - distanceSoFar) / d) * (curr.x - prev.x);
-        const qy = prev.y + ((interval - distanceSoFar) / d) * (curr.y - prev.y);
-        const q = { x: qx, y: qy };
-        resampled.push(q);
-        points.splice(i, 0, q); // Insert q for next iteration
-        distanceSoFar = 0;
-      } else {
-        distanceSoFar += d;
-      }
+  private mapNameToSpellType(name: string): SpellType {
+    switch (name.toLowerCase()) {
+      case 'shield': return SpellType.SHIELD;
+      case 'lightning': return SpellType.LIGHTNING;
+      case 'fireball': return SpellType.FIREBALL;
+      case 'frost': return SpellType.FROST;
+      default: return SpellType.FIZZLE;
     }
-
-    // Sometimes we fall short due to rounding errors
-    while (resampled.length < n) {
-      resampled.push(points[points.length - 1]);
-    }
-
-    return resampled.slice(0, n);
   }
 
   /**
-   * Rotate points so that the indicative angle is 0°
-   * Indicative angle = angle from centroid to first point
-   * 
-   * **Validates: Requirement 8.3**
-   */
-  private rotateToZero(points: { x: number; y: number }[]): { x: number; y: number }[] {
-    const centroid = this.centroid(points);
-    const indicativeAngle = Math.atan2(
-      centroid.y - points[0].y,
-      centroid.x - points[0].x
-    );
-    return this.rotateBy(points, -indicativeAngle);
-  }
-
-  /**
-   * Rotate points by a given angle (radians) around centroid
-   */
-  private rotateBy(points: { x: number; y: number }[], angle: number): { x: number; y: number }[] {
-    const centroid = this.centroid(points);
-    const cos = Math.cos(angle);
-    const sin = Math.sin(angle);
-
-    return points.map(p => {
-      const dx = p.x - centroid.x;
-      const dy = p.y - centroid.y;
-      return {
-        x: dx * cos - dy * sin + centroid.x,
-        y: dx * sin + dy * cos + centroid.y
-      };
-    });
-  }
-
-  /**
-   * Scale points to fit in a reference square (MUST use uniform scaling)
-   * 
-   * **Validates: Requirement 8.4**
-   */
-  private scaleToSquare(points: { x: number; y: number }[], size: number): { x: number; y: number }[] {
-    const box = this.boundingBox(points);
-    // CRITICAL: Use uniform scaling (same scale for X and Y)
-    // Use the LARGER dimension to preserve shape
-    const scale = size / Math.max(box.width, box.height);
-
-    return points.map(p => ({
-      x: p.x * scale,
-      y: p.y * scale
-    }));
-  }
-
-  /**
-   * Translate points so centroid is at origin
-   * 
-   * **Validates: Requirement 8.5**
-   */
-  private translateToOrigin(points: { x: number; y: number }[]): { x: number; y: number }[] {
-    const centroid = this.centroid(points);
-    return points.map(p => ({
-      x: p.x - centroid.x,
-      y: p.y - centroid.y
-    }));
-  }
-
-  /**
-   * Calculate average distance between corresponding points in two paths
-   * 
-   * **Validates: Requirement 8.6**
-   */
-  private pathDistance(path1: { x: number; y: number }[], path2: { x: number; y: number }[]): number {
-    if (path1.length !== path2.length) {
-      console.warn('Path lengths differ in pathDistance');
-      return Infinity;
-    }
-
-    let sum = 0;
-    for (let i = 0; i < path1.length; i++) {
-      sum += this.distance(path1[i], path2[i]);
-    }
-    return sum / path1.length;
-  }
-
-  /**
-   * Euclidean distance between two points
-   */
-  private distance(p1: { x: number; y: number }, p2: { x: number; y: number }): number {
-    const dx = p2.x - p1.x;
-    const dy = p2.y - p1.y;
-    return Math.sqrt(dx * dx + dy * dy);
-  }
-
-  /**
-   * Calculate total path length
-   */
-  private calculatePathLength(points: { x: number; y: number }[]): number {
-    let length = 0;
-    for (let i = 1; i < points.length; i++) {
-      length += this.distance(points[i - 1], points[i]);
-    }
-    return length;
-  }
-
-  /**
-   * Calculate centroid of points
-   */
-  private centroid(points: { x: number; y: number }[]): { x: number; y: number } {
-    let sumX = 0;
-    let sumY = 0;
-    for (const p of points) {
-      sumX += p.x;
-      sumY += p.y;
-    }
-    return {
-      x: sumX / points.length,
-      y: sumY / points.length
-    };
-  }
-
-  /**
-   * Calculate bounding box of points
-   */
-  private boundingBox(points: { x: number; y: number }[]): { minX: number; minY: number; width: number; height: number } {
-    let minX = Infinity;
-    let minY = Infinity;
-    let maxX = -Infinity;
-    let maxY = -Infinity;
-
-    for (const p of points) {
-      minX = Math.min(minX, p.x);
-      minY = Math.min(minY, p.y);
-      maxX = Math.max(maxX, p.x);
-      maxY = Math.max(maxY, p.y);
-    }
-
-    return {
-      minX,
-      minY,
-      width: maxX - minX,
-      height: maxY - minY
-    };
-  }
-
-  /**
-   * Create a fizzle result (failed recognition)
+   * Create a fizzle result for failed recognition
    */
   private createFizzleResult(): RecognizedSpell {
     return {
       type: SpellType.FIZZLE,
       confidence: 0,
-      matchScore: Infinity,
+      matchScore: 1,
       timestamp: Date.now()
     };
   }
 
   /**
-   * Train a template with multiple samples
-   * Averages 3 samples into a single template
-   * 
-   * **Validates: Requirement 9.6**
+   * Add a custom trained template
    */
-  trainTemplate(spellType: SpellType, samples: Stroke[]): void {
-    if (samples.length !== 3) {
-      console.warn(`Expected 3 samples for training, got ${samples.length}`);
-      return;
-    }
-
-    // Normalize all samples
-    const normalized = samples.map(sample => {
-      let points = this.resample(sample.points, this.config.resamplePoints);
-      points = this.rotateToZero(points);
-      points = this.scaleToSquare(points, this.config.referenceSize);
-      points = this.translateToOrigin(points);
-      return points;
-    });
-
-    // Average corresponding points
-    const averaged: { x: number; y: number }[] = [];
-    for (let i = 0; i < this.config.resamplePoints; i++) {
-      const avgX = (normalized[0][i].x + normalized[1][i].x + normalized[2][i].x) / 3;
-      const avgY = (normalized[0][i].y + normalized[1][i].y + normalized[2][i].y) / 3;
-      averaged.push({ x: avgX, y: avgY });
-    }
-
-    // Store template
-    this.templates.set(spellType, {
-      type: spellType,
-      points: averaged
-    });
-
-    // Save to localStorage
-    this.saveTemplates();
-
-    console.log(`Trained template for ${spellType}`);
+  addTemplate(name: string, points: { x: number; y: number }[]): void {
+    this.detector.learn(name, points);
   }
 
   /**
-   * Load templates from localStorage or use defaults
-   * 
-   * **Validates: Requirements 9.5, 9.7**
+   * Clear all templates
    */
-  loadTemplates(): void {
-    try {
-      const stored = localStorage.getItem(this.STORAGE_KEY);
-      if (stored) {
-        const parsed = JSON.parse(stored);
-        for (const [type, template] of Object.entries(parsed)) {
-          this.templates.set(type as SpellType, template as SpellTemplate);
-        }
-        console.log('Loaded trained templates from localStorage');
-        return;
-      }
-    } catch (e) {
-      console.warn('Failed to load templates from localStorage:', e);
-    }
-
-    // Fall back to default templates
-    this.resetToDefaults();
-  }
-
-  /**
-   * Save templates to localStorage
-   * 
-   * **Validates: Requirement 9.7**
-   */
-  saveTemplates(): void {
-    try {
-      const obj: Record<string, SpellTemplate> = {};
-      for (const [type, template] of this.templates) {
-        obj[type] = template;
-      }
-      localStorage.setItem(this.STORAGE_KEY, JSON.stringify(obj));
-      console.log('Templates saved to localStorage');
-    } catch (e) {
-      console.warn('Failed to save templates to localStorage:', e);
-    }
-  }
-
-  /**
-   * Reset to default templates
-   * 
-   * **Validates: Requirements 9.5, 9.8**
-   */
-  resetToDefaults(): void {
-    this.templates.clear();
-
-    // Generate default templates
-    this.templates.set(SpellType.SHIELD, {
-      type: SpellType.SHIELD,
-      points: this.generateCircle(this.config.resamplePoints)
-    });
-
-    this.templates.set(SpellType.LIGHTNING, {
-      type: SpellType.LIGHTNING,
-      points: this.generateZigzag(this.config.resamplePoints)
-    });
-
-    this.templates.set(SpellType.FIREBALL, {
-      type: SpellType.FIREBALL,
-      points: this.generateStraightLine(this.config.resamplePoints)
-    });
-
-    this.templates.set(SpellType.FROST, {
-      type: SpellType.FROST,
-      points: this.generateVShape(this.config.resamplePoints)
-    });
-
-    console.log('Reset to default templates');
-    
-    // Debug: Log what the templates look like
-    console.log('📋 Default template shapes:');
-    for (const [spellType, template] of this.templates) {
-      if (spellType === SpellType.FIZZLE) continue;
-      const pts = template.points;
-      console.log(`   ${spellType}: first=(${pts[0].x.toFixed(3)},${pts[0].y.toFixed(3)}), mid=(${pts[32].x.toFixed(3)},${pts[32].y.toFixed(3)}), last=(${pts[63].x.toFixed(3)},${pts[63].y.toFixed(3)})`);
-    }
-    
-    this.saveTemplates();
-  }
-
-  /**
-   * Generate circle template (64 points)
-   */
-  private generateCircle(n: number): { x: number; y: number }[] {
-    const points: { x: number; y: number }[] = [];
-    const radius = 0.5;
-    for (let i = 0; i < n; i++) {
-      const angle = (i / n) * 2 * Math.PI;
-      points.push({
-        x: radius * Math.cos(angle),
-        y: radius * Math.sin(angle)
-      });
-    }
-    return points;
-  }
-
-  /**
-   * Generate zigzag template (64 points, 4 peaks)
-   */
-  private generateZigzag(n: number): { x: number; y: number }[] {
-    const points: { x: number; y: number }[] = [];
-    const peaks = 4;
-    for (let i = 0; i < n; i++) {
-      const t = i / (n - 1);
-      const x = t - 0.5; // Center horizontally
-      const y = 0.5 * Math.sin(t * peaks * 2 * Math.PI);
-      points.push({ x, y });
-    }
-    return points;
-  }
-
-  /**
-   * Generate straight horizontal line template (64 points)
-   */
-  private generateStraightLine(n: number): { x: number; y: number }[] {
-    const points: { x: number; y: number }[] = [];
-    for (let i = 0; i < n; i++) {
-      const t = i / (n - 1);
-      points.push({
-        x: t - 0.5, // Center horizontally
-        y: 0
-      });
-    }
-    return points;
-  }
-
-  /**
-   * Generate V shape template (64 points)
-   */
-  private generateVShape(n: number): { x: number; y: number }[] {
-    const points: { x: number; y: number }[] = [];
-    const midpoint = Math.floor(n / 2);
-
-    // First half: descending line (45° down)
-    for (let i = 0; i < midpoint; i++) {
-      const t = i / midpoint;
-      points.push({
-        x: -0.5 + t * 0.5, // -0.5 to 0
-        y: -t * 0.5         // 0 to -0.5
-      });
-    }
-
-    // Second half: ascending line (45° up)
-    for (let i = 0; i < n - midpoint; i++) {
-      const t = i / (n - midpoint);
-      points.push({
-        x: t * 0.5,         // 0 to 0.5
-        y: -0.5 + t * 0.5   // -0.5 to 0
-      });
-    }
-
-    return points;
-  }
-
-  /**
-   * Get current rejection threshold
-   */
-  getRejectionThreshold(): number {
-    return this.config.rejectionThreshold;
-  }
-
-  /**
-   * Set rejection threshold
-   */
-  setRejectionThreshold(threshold: number): void {
-    this.config.rejectionThreshold = threshold;
-  }
-
-  /**
-   * Get all templates (for debugging)
-   */
-  getTemplates(): Map<SpellType, SpellTemplate> {
-    return new Map(this.templates);
-  }
-  
-  /**
-   * Get all match scores for a stroke (for debug overlay)
-   * 
-   * Returns distance scores for all spell types (lower is better match)
-   */
-  getAllScores(stroke: Stroke): { type: string; score: number }[] {
-    if (!stroke || stroke.points.length < 2) {
-      return [];
-    }
-
-    // Preprocess stroke
-    let points = this.resample(stroke.points, this.config.resamplePoints);
-    points = this.rotateToZero(points);
-    points = this.scaleToSquare(points, this.config.referenceSize);
-    points = this.translateToOrigin(points);
-
-    // Calculate distance to each template
-    const scores: { type: string; score: number }[] = [];
-    for (const [spellType, template] of this.templates) {
-      if (spellType === SpellType.FIZZLE) continue;
-      
-      const distance = this.pathDistance(points, template.points);
-      scores.push({
-        type: spellType,
-        score: distance
-      });
-    }
-
-    // Sort by score (ascending - best match first)
-    scores.sort((a, b) => a.score - b.score);
-    return scores;
+  clearTemplates(): void {
+    this.detector = new ShapeDetector([]);
   }
 }
