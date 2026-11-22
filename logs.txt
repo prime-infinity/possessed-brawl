@@ -1,0 +1,262 @@
+Spell Duel - Application initialized
+main.ts:1313 Spell Duel - Ready to start
+main.ts:267 Starting application (SKIP-CALIBRATION mode)...
+main.ts:273 Initializing pose detector...
+vision_wasm_internal.js:4909 I1122 12:53:27.852999 2210688 gl_context.cc:408] GL version: 3.0 (OpenGL ES 3.0 (WebGL 2.0 (OpenGL ES 3.0 Chromium))), renderer: WebKit WebGL
+vision_wasm_internal.js:8667 W1122 12:53:27.855000 2210688 gl_context.cc:1136] OpenGL error checking is disabled
+custom_dbg @ vision_wasm_internal.js:8667
+custom_emscripten_dbgn @ vision_wasm_internal.js:8670
+$func17089 @ vision_wasm_internal.wasm:0xb0ccea
+$func7562 @ vision_wasm_internal.wasm:0x595ad5
+$func241 @ vision_wasm_internal.wasm:0x123ad
+$func4064 @ vision_wasm_internal.wasm:0x225bfe
+$func1133 @ vision_wasm_internal.wasm:0x6be04
+$func6665 @ vision_wasm_internal.wasm:0x46205f
+$func6643 @ vision_wasm_internal.wasm:0x45fd83
+$func16099 @ vision_wasm_internal.wasm:0x9af205
+$func4080 @ vision_wasm_internal.wasm:0x2282c5
+$func6935 @ vision_wasm_internal.wasm:0x4d0d35
+$Xf @ vision_wasm_internal.wasm:0xbc1d19
+setGraph @ vision_bundle.mjs?v=6d2ec564:1
+setGraph @ vision_bundle.mjs?v=6d2ec564:1
+u @ vision_bundle.mjs?v=6d2ec564:1
+(anonymous) @ vision_bundle.mjs?v=6d2ec564:1
+Promise.then
+l @ vision_bundle.mjs?v=6d2ec564:1
+l @ vision_bundle.mjs?v=6d2ec564:1
+A @ vision_bundle.mjs?v=6d2ec564:1
+zh @ vision_bundle.mjs?v=6d2ec564:1
+await in zh
+qh @ vision_bundle.mjs?v=6d2ec564:1
+Zu @ vision_bundle.mjs?v=6d2ec564:1
+Kc.createFromOptions @ vision_bundle.mjs?v=6d2ec564:1
+(anonymous) @ PoseDetector.ts:220
+await in (anonymous)
+(anonymous) @ PoseDetector.ts:85
+(anonymous) @ main.ts:274
+(anonymous) @ main.ts:205
+vision_wasm_internal.js:1337 Graph successfully started running.
+PoseDetector.ts:232 MediaPipe Pose initialized successfully
+PoseDetector.ts:153 PoseDetector initialized successfully
+main.ts:275 Pose detector initialized successfully
+main.ts:282 ⚠️ SKIPPING hand selection and calibration
+main.ts:283 📊 Will log wrist detection every second...
+vision_wasm_internal.js:8667 W1122 12:53:28.947000 2210688 landmark_projection_calculator.cc:81] Using NORM_RECT without IMAGE_DIMENSIONS is only supported for the square ROI. Provide IMAGE_DIMENSIONS or use PROJECTION_MATRIX.
+custom_dbg @ vision_wasm_internal.js:8667
+custom_emscripten_dbgn @ vision_wasm_internal.js:8670
+$func17089 @ vision_wasm_internal.wasm:0xb0ccea
+$func7562 @ vision_wasm_internal.wasm:0x595ad5
+$func241 @ vision_wasm_internal.wasm:0x123ad
+$func15685 @ vision_wasm_internal.wasm:0x95e83e
+$func6457 @ vision_wasm_internal.wasm:0x444b47
+$func15208 @ vision_wasm_internal.wasm:0x91300c
+$func12971 @ vision_wasm_internal.wasm:0x808a59
+$func3974 @ vision_wasm_internal.wasm:0x20feab
+$func6696 @ vision_wasm_internal.wasm:0x4672e5
+$func4166 @ vision_wasm_internal.wasm:0x25220d
+$bg @ vision_wasm_internal.wasm:0x635d48
+finishProcessing @ vision_bundle.mjs?v=6d2ec564:1
+finishProcessing @ vision_bundle.mjs?v=6d2ec564:1
+Qu @ vision_bundle.mjs?v=6d2ec564:1
+ec @ vision_bundle.mjs?v=6d2ec564:1
+I @ vision_bundle.mjs?v=6d2ec564:1
+(anonymous) @ PoseDetector.ts:289
+(anonymous) @ main.ts:496
+(anonymous) @ main.ts:384
+requestAnimationFrame
+(anonymous) @ main.ts:397
+requestAnimationFrame
+(anonymous) @ main.ts:397
+requestAnimationFrame
+(anonymous) @ main.ts:397
+requestAnimationFrame
+(anonymous) @ main.ts:397
+requestAnimationFrame
+(anonymous) @ main.ts:397
+(anonymous) @ main.ts:290
+await in (anonymous)
+(anonymous) @ main.ts:205
+main.ts:546 ═══════════════════════════════════════
+main.ts:547 🔵 OFF-HAND ARMED - Ready to cast!
+main.ts:548 ═══════════════════════════════════════
+main.ts:562 ✏️ Drawing... point 10: (0.2637, 0.4194)
+main.ts:562 ✏️ Drawing... point 20: (0.2786, 0.4139)
+main.ts:562 ✏️ Drawing... point 30: (0.2765, 0.4170)
+main.ts:562 ✏️ Drawing... point 40: (0.2785, 0.4173)
+main.ts:562 ✏️ Drawing... point 50: (0.3298, 0.6097)
+main.ts:562 ✏️ Drawing... point 60: (0.1112, 0.6450)
+main.ts:562 ✏️ Drawing... point 70: (0.1988, 0.4045)
+main.ts:584 ═══════════════════════════════════════
+main.ts:585 ✨ CASTING SPELL
+main.ts:586 ═══════════════════════════════════════
+main.ts:594 📝 Raw trail captured: 78 points
+main.ts:595    First point: (0.1319, 0.5022)
+main.ts:596    Mid point:   (0.2785, 0.4173)
+main.ts:597    Last point:  (0.2724, 0.3984)
+main.ts:609 📏 Raw trail bounding box:
+main.ts:610    X range: 0.0902 to 0.3298 (width: 0.2396)
+main.ts:611    Y range: 0.3959 to 0.7556 (height: 0.3597)
+main.ts:612    Aspect ratio: 0.666
+GestureRecognizer.ts:79 Loading default spell templates
+GestureRecognizer.ts:126 ✅ Loaded 4 simple spell templates:
+GestureRecognizer.ts:127    - SHIELD: Circle ⭕
+GestureRecognizer.ts:128    - FIREBALL: Horizontal line ➡️
+GestureRecognizer.ts:129    - LIGHTNING: Diagonal line ↗️
+GestureRecognizer.ts:130    - FROST: Vertical line ⬆️
+main.ts:625 🔄 Sending to GestureRecognizer...
+GestureRecognizer.ts:140 ═══════════════════════════════════════
+GestureRecognizer.ts:141 ✨ SHAPE-DETECTOR RECOGNITION
+GestureRecognizer.ts:142 ═══════════════════════════════════════
+GestureRecognizer.ts:143 📝 Input: 78 points
+GestureRecognizer.ts:157 🎯 Shape-detector result: {pattern: 'shield', score: 0.4836674247863789}
+GestureRecognizer.ts:168    Matched: shield
+GestureRecognizer.ts:169    Score: 0.4837
+GestureRecognizer.ts:170    Rejection threshold: 0.2
+GestureRecognizer.ts:185 ✅ ACCEPTED: shield with confidence 48.4%
+GestureRecognizer.ts:186 ═══════════════════════════════════════
+main.ts:633 ═══════════════════════════════════════
+main.ts:634 🎯 SPELL RECOGNIZED: shield
+main.ts:635    Confidence: 48.4%
+main.ts:636    Match score: 0.4837
+main.ts:637 ═══════════════════════════════════════
+main.ts:546 ═══════════════════════════════════════
+main.ts:547 🔵 OFF-HAND ARMED - Ready to cast!
+main.ts:548 ═══════════════════════════════════════
+main.ts:562 ✏️ Drawing... point 10: (0.1828, 1.1170)
+main.ts:562 ✏️ Drawing... point 20: (0.1878, 1.1455)
+main.ts:562 ✏️ Drawing... point 30: (0.2020, 1.1495)
+main.ts:562 ✏️ Drawing... point 40: (0.2093, 1.1617)
+main.ts:562 ✏️ Drawing... point 50: (0.2040, 1.1471)
+main.ts:562 ✏️ Drawing... point 60: (0.1933, 1.1250)
+main.ts:562 ✏️ Drawing... point 70: (0.3091, 0.8620)
+main.ts:562 ✏️ Drawing... point 80: (0.4393, 0.5798)
+main.ts:562 ✏️ Drawing... point 90: (0.4564, 0.5585)
+main.ts:562 ✏️ Drawing... point 100: (0.2516, 0.5604)
+main.ts:584 ═══════════════════════════════════════
+main.ts:585 ✨ CASTING SPELL
+main.ts:586 ═══════════════════════════════════════
+main.ts:594 📝 Raw trail captured: 100 points
+main.ts:595    First point: (0.1855, 1.1439)
+main.ts:596    Mid point:   (0.2601, 0.9770)
+main.ts:597    Last point:  (-0.0198, 0.6067)
+main.ts:609 📏 Raw trail bounding box:
+main.ts:610    X range: -0.0198 to 0.4584 (width: 0.4782)
+main.ts:611    Y range: 0.5558 to 1.1619 (height: 0.6061)
+main.ts:612    Aspect ratio: 0.789
+main.ts:625 🔄 Sending to GestureRecognizer...
+GestureRecognizer.ts:140 ═══════════════════════════════════════
+GestureRecognizer.ts:141 ✨ SHAPE-DETECTOR RECOGNITION
+GestureRecognizer.ts:142 ═══════════════════════════════════════
+GestureRecognizer.ts:143 📝 Input: 100 points
+GestureRecognizer.ts:157 🎯 Shape-detector result: {pattern: 'shield', score: 0.24596928906430804}
+GestureRecognizer.ts:168    Matched: shield
+GestureRecognizer.ts:169    Score: 0.2460
+GestureRecognizer.ts:170    Rejection threshold: 0.2
+GestureRecognizer.ts:185 ✅ ACCEPTED: shield with confidence 24.6%
+GestureRecognizer.ts:186 ═══════════════════════════════════════
+main.ts:633 ═══════════════════════════════════════
+main.ts:634 🎯 SPELL RECOGNIZED: shield
+main.ts:635    Confidence: 24.6%
+main.ts:636    Match score: 0.2460
+main.ts:637 ═══════════════════════════════════════
+main.ts:546 ═══════════════════════════════════════
+main.ts:547 🔵 OFF-HAND ARMED - Ready to cast!
+main.ts:548 ═══════════════════════════════════════
+main.ts:562 ✏️ Drawing... point 10: (-0.0188, 0.6457)
+main.ts:562 ✏️ Drawing... point 20: (-0.0163, 0.6280)
+main.ts:562 ✏️ Drawing... point 30: (0.1985, 0.5351)
+main.ts:562 ✏️ Drawing... point 40: (0.4929, 0.4448)
+main.ts:584 ═══════════════════════════════════════
+main.ts:585 ✨ CASTING SPELL
+main.ts:586 ═══════════════════════════════════════
+main.ts:594 📝 Raw trail captured: 48 points
+main.ts:595    First point: (-0.0234, 0.6394)
+main.ts:596    Mid point:   (0.0033, 0.5884)
+main.ts:597    Last point:  (0.5199, 0.4293)
+main.ts:609 📏 Raw trail bounding box:
+main.ts:610    X range: -0.0234 to 0.5199 (width: 0.5433)
+main.ts:611    Y range: 0.4293 to 0.6476 (height: 0.2184)
+main.ts:612    Aspect ratio: 2.488
+main.ts:625 🔄 Sending to GestureRecognizer...
+GestureRecognizer.ts:140 ═══════════════════════════════════════
+GestureRecognizer.ts:141 ✨ SHAPE-DETECTOR RECOGNITION
+GestureRecognizer.ts:142 ═══════════════════════════════════════
+GestureRecognizer.ts:143 📝 Input: 48 points
+GestureRecognizer.ts:157 🎯 Shape-detector result: {pattern: 'shield', score: 0.4345474699942814}
+GestureRecognizer.ts:168    Matched: shield
+GestureRecognizer.ts:169    Score: 0.4345
+GestureRecognizer.ts:170    Rejection threshold: 0.2
+GestureRecognizer.ts:185 ✅ ACCEPTED: shield with confidence 43.5%
+GestureRecognizer.ts:186 ═══════════════════════════════════════
+main.ts:633 ═══════════════════════════════════════
+main.ts:634 🎯 SPELL RECOGNIZED: shield
+main.ts:635    Confidence: 43.5%
+main.ts:636    Match score: 0.4345
+main.ts:637 ═══════════════════════════════════════
+main.ts:546 ═══════════════════════════════════════
+main.ts:547 🔵 OFF-HAND ARMED - Ready to cast!
+main.ts:548 ═══════════════════════════════════════
+main.ts:562 ✏️ Drawing... point 10: (0.5125, 0.3998)
+main.ts:562 ✏️ Drawing... point 20: (0.5155, 0.3876)
+main.ts:562 ✏️ Drawing... point 30: (0.3032, 0.6671)
+main.ts:562 ✏️ Drawing... point 40: (0.0713, 1.0588)
+main.ts:584 ═══════════════════════════════════════
+main.ts:585 ✨ CASTING SPELL
+main.ts:586 ═══════════════════════════════════════
+main.ts:594 📝 Raw trail captured: 40 points
+main.ts:595    First point: (0.5092, 0.4162)
+main.ts:596    Mid point:   (0.5151, 0.3863)
+main.ts:597    Last point:  (0.0713, 1.0588)
+main.ts:609 📏 Raw trail bounding box:
+main.ts:610    X range: 0.0713 to 0.5155 (width: 0.4442)
+main.ts:611    Y range: 0.3863 to 1.0588 (height: 0.6724)
+main.ts:612    Aspect ratio: 0.661
+main.ts:625 🔄 Sending to GestureRecognizer...
+GestureRecognizer.ts:140 ═══════════════════════════════════════
+GestureRecognizer.ts:141 ✨ SHAPE-DETECTOR RECOGNITION
+GestureRecognizer.ts:142 ═══════════════════════════════════════
+GestureRecognizer.ts:143 📝 Input: 40 points
+GestureRecognizer.ts:157 🎯 Shape-detector result: {pattern: 'lightning', score: 0.16155368872349773}
+GestureRecognizer.ts:168    Matched: lightning
+GestureRecognizer.ts:169    Score: 0.1616
+GestureRecognizer.ts:170    Rejection threshold: 0.2
+GestureRecognizer.ts:174 ❌ REJECTED: score 0.162 < threshold 0.2
+GestureRecognizer.ts:175 ═══════════════════════════════════════
+main.ts:639 ═══════════════════════════════════════
+main.ts:640 ❌ No spell recognized (all above rejection threshold)
+main.ts:641 ═══════════════════════════════════════
+main.ts:546 ═══════════════════════════════════════
+main.ts:547 🔵 OFF-HAND ARMED - Ready to cast!
+main.ts:548 ═══════════════════════════════════════
+main.ts:562 ✏️ Drawing... point 10: (0.3271, 0.4756)
+main.ts:562 ✏️ Drawing... point 20: (0.3950, 0.4561)
+main.ts:562 ✏️ Drawing... point 30: (0.4133, 0.4480)
+main.ts:562 ✏️ Drawing... point 40: (0.4329, 0.4303)
+main.ts:562 ✏️ Drawing... point 50: (0.0762, 0.9663)
+main.ts:584 ═══════════════════════════════════════
+main.ts:585 ✨ CASTING SPELL
+main.ts:586 ═══════════════════════════════════════
+main.ts:594 📝 Raw trail captured: 56 points
+main.ts:595    First point: (0.1188, 0.7462)
+main.ts:596    Mid point:   (0.4109, 0.4498)
+main.ts:597    Last point:  (0.0382, 1.0524)
+main.ts:609 📏 Raw trail bounding box:
+main.ts:610    X range: 0.0382 to 0.4387 (width: 0.4005)
+main.ts:611    Y range: 0.4213 to 1.0524 (height: 0.6311)
+main.ts:612    Aspect ratio: 0.635
+main.ts:625 🔄 Sending to GestureRecognizer...
+GestureRecognizer.ts:140 ═══════════════════════════════════════
+GestureRecognizer.ts:141 ✨ SHAPE-DETECTOR RECOGNITION
+GestureRecognizer.ts:142 ═══════════════════════════════════════
+GestureRecognizer.ts:143 📝 Input: 56 points
+GestureRecognizer.ts:157 🎯 Shape-detector result: {pattern: 'shield', score: 0.5935761517221028}
+GestureRecognizer.ts:168    Matched: shield
+GestureRecognizer.ts:169    Score: 0.5936
+GestureRecognizer.ts:170    Rejection threshold: 0.2
+GestureRecognizer.ts:185 ✅ ACCEPTED: shield with confidence 59.4%
+GestureRecognizer.ts:186 ═══════════════════════════════════════
+main.ts:633 ═══════════════════════════════════════
+main.ts:634 🎯 SPELL RECOGNIZED: shield
+main.ts:635    Confidence: 59.4%
+main.ts:636    Match score: 0.5936
+main.ts:637 ═══════════════════════════════════════

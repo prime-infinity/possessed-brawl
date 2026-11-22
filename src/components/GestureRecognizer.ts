@@ -78,47 +78,56 @@ export class GestureRecognizer {
   private loadDefaultTemplates(): void {
     console.log('Loading default spell templates');
     
-    // Define templates inline for the 4 core spells
+    // Define DEAD SIMPLE templates - just basic directions
     // User gestures are in normalized coordinates (0-1 range)
-    // Templates should match this scale
+    // Templates are simple so messy/shaky gestures still match
     
-    // SHIELD: Circle (clockwise from top)
+    // SHIELD: Circle (any direction, just a loop)
     const shieldPoints: Array<{x: number, y: number}> = [];
-    for (let i = 0; i < 32; i++) {
+    for (let i = 0; i <= 32; i++) {
       const angle = (i / 32) * Math.PI * 2;
       shieldPoints.push({
-        x: Math.cos(angle) * 0.1 + 0.5,  // Circle radius 0.1, centered at 0.5
-        y: Math.sin(angle) * 0.1 + 0.5
+        x: Math.cos(angle) * 0.15 + 0.5,
+        y: Math.sin(angle) * 0.15 + 0.5
       });
     }
     this.detector.learn('shield', shieldPoints);
     
-    // LIGHTNING: Zigzag (down-right-down-right pattern)
-    const lightningPoints: Array<{x: number, y: number}> = [
-      {x: 0.5, y: 0.3},   // Top
-      {x: 0.6, y: 0.45},  // Down-right
-      {x: 0.4, y: 0.6},   // Down-left
-      {x: 0.5, y: 0.75}   // Down-right
-    ];
-    this.detector.learn('lightning', lightningPoints);
-    
     // FIREBALL: Horizontal line (left to right)
     const fireballPoints: Array<{x: number, y: number}> = [];
-    for (let i = 0; i < 32; i++) {
+    for (let i = 0; i <= 20; i++) {
       fireballPoints.push({
-        x: 0.3 + (i / 31) * 0.4,  // Line from 0.3 to 0.7
+        x: 0.2 + (i / 20) * 0.6,
         y: 0.5
       });
     }
     this.detector.learn('fireball', fireballPoints);
     
-    // FROST: V shape (down-left then down-right)
-    const frostPoints: Array<{x: number, y: number}> = [
-      {x: 0.4, y: 0.3},   // Top-left
-      {x: 0.5, y: 0.6},   // Bottom point
-      {x: 0.6, y: 0.3}    // Top-right
-    ];
+    // LIGHTNING: Diagonal line (bottom-left to top-right)
+    const lightningPoints: Array<{x: number, y: number}> = [];
+    for (let i = 0; i <= 20; i++) {
+      lightningPoints.push({
+        x: 0.2 + (i / 20) * 0.6,  // Left to right
+        y: 0.7 - (i / 20) * 0.4   // Bottom to top
+      });
+    }
+    this.detector.learn('lightning', lightningPoints);
+    
+    // FROST: Vertical line (bottom to top)
+    const frostPoints: Array<{x: number, y: number}> = [];
+    for (let i = 0; i <= 20; i++) {
+      frostPoints.push({
+        x: 0.5,
+        y: 0.7 - (i / 20) * 0.4  // Bottom to top
+      });
+    }
     this.detector.learn('frost', frostPoints);
+    
+    console.log('✅ Loaded 4 simple spell templates:');
+    console.log('   - SHIELD: Circle ⭕');
+    console.log('   - FIREBALL: Horizontal line ➡️');
+    console.log('   - LIGHTNING: Diagonal line ↗️');
+    console.log('   - FROST: Vertical line ⬆️');
   }
 
   /**
@@ -136,7 +145,7 @@ export class GestureRecognizer {
     if (stroke.points.length < 10) {
       console.log('❌ Too few points (need at least 10)');
       console.log('═══════════════════════════════════════');
-      return this.createFizzleResult();
+      return null;
     }
 
     // Convert to shape-detector format (array of {x, y} points)
@@ -150,7 +159,7 @@ export class GestureRecognizer {
     if (!result || !result.pattern) {
       console.log('❌ No match found');
       console.log('═══════════════════════════════════════');
-      return this.createFizzleResult();
+      return null;
     }
     
     // Shape-detector returns score 0-1 (higher = better match)
@@ -164,7 +173,7 @@ export class GestureRecognizer {
     if (score < this.config.rejectionThreshold) {
       console.log(`❌ REJECTED: score ${score.toFixed(3)} < threshold ${this.config.rejectionThreshold}`);
       console.log('═══════════════════════════════════════');
-      return this.createFizzleResult();
+      return null;
     }
     
     // Map gesture name to SpellType
@@ -193,20 +202,10 @@ export class GestureRecognizer {
       case 'lightning': return SpellType.LIGHTNING;
       case 'fireball': return SpellType.FIREBALL;
       case 'frost': return SpellType.FROST;
-      default: return SpellType.FIZZLE;
+      default:
+        console.warn(`Unknown spell type: ${name}, defaulting to shield`);
+        return SpellType.SHIELD;
     }
-  }
-
-  /**
-   * Create a fizzle result for failed recognition
-   */
-  private createFizzleResult(): RecognizedSpell {
-    return {
-      type: SpellType.FIZZLE,
-      confidence: 0,
-      matchScore: 1,
-      timestamp: Date.now()
-    };
   }
 
   /**

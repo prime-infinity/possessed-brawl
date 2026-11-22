@@ -992,8 +992,7 @@ export class Renderer {
     const centerY = this.height / 3;
     
     // Spell name in smaller text for better screen visibility
-    const isFizzle = spell.type === SpellType.FIZZLE;
-    this.ctx.fillStyle = isFizzle ? '#ff0000' : '#00ff41';
+    this.ctx.fillStyle = '#00ff41';
     this.ctx.font = 'bold 20px monospace';
     this.ctx.textAlign = 'center';
     this.ctx.textBaseline = 'middle';
@@ -1005,15 +1004,13 @@ export class Renderer {
     this.ctx.fillText(spell.type, centerX, centerY);
     
     // Confidence percentage
-    if (!isFizzle) {
-      this.ctx.font = '14px monospace';
-      this.ctx.fillStyle = '#ffffff';
-      this.ctx.fillText(
-        `${(spell.confidence * 100).toFixed(1)}% confidence`,
-        centerX,
-        centerY + 25
-      );
-    }
+    this.ctx.font = '14px monospace';
+    this.ctx.fillStyle = '#ffffff';
+    this.ctx.fillText(
+      `${(spell.confidence * 100).toFixed(1)}% confidence`,
+      centerX,
+      centerY + 25
+    );
     
     this.ctx.restore();
   }
@@ -1024,7 +1021,7 @@ export class Renderer {
    * **Validates: Requirements 11.1, 11.2, 11.3, 11.4, 11.5**
    */
   private drawSpellEffect(spell: RecognizedSpell): void {
-    if (spell.type === SpellType.FIZZLE) return;
+    // All spells get effects now (no FIZZLE)
     
     this.ctx.save();
     

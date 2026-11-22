@@ -35,8 +35,7 @@ export enum SpellType {
   SHIELD = 'shield',
   LIGHTNING = 'lightning',
   FIREBALL = 'fireball',
-  FROST = 'frost',
-  FIZZLE = 'fizzle'  // Failed recognition
+  FROST = 'frost'
 }
 
 /**

@@ -114,6 +114,8 @@ export class PoseDetector {
       this.videoElement.style.position = 'absolute';
       this.videoElement.style.top = '-9999px';
       this.videoElement.style.left = '-9999px';
+      this.videoElement.style.visibility = 'hidden';  // Extra hiding
+      this.videoElement.style.opacity = '0';  // Extra hiding
       
       // Attach stream to video element
       this.videoElement.srcObject = this.stream;
@@ -143,8 +145,9 @@ export class PoseDetector {
       // Start video playback
       await this.videoElement.play();
 
-      // Append to document (hidden)
-      document.body.appendChild(this.videoElement);
+      // Append to document (hidden) - COMMENTED OUT TO REMOVE VISUAL FEED
+      // Uncomment if needed for debugging video feed display
+      // document.body.appendChild(this.videoElement);
 
       this.isInitialized = true;
       console.log('PoseDetector initialized successfully');
