@@ -14,8 +14,6 @@ import { Renderer } from './components/Renderer';
 import { ThresholdTuningUI } from './components/ThresholdTuningUI';
 import { StrokeCapture } from './components/StrokeCapture';
 import { GestureRecognizer } from './components/GestureRecognizer';
-import { TemplateRecorder } from './components/TemplateRecorder';
-import { WandHandSelector, SelectionState } from './components/WandHandSelector';
 import { Landmarks, BaselineData, MoveType, DetectedMove, RecognizedSpell, OffHandState, WandHand, Stroke, SpellType } from './types';
 
 /**
@@ -24,7 +22,6 @@ import { Landmarks, BaselineData, MoveType, DetectedMove, RecognizedSpell, OffHa
 export enum AppState {
   NOT_STARTED = 'not_started',
   INITIALIZING = 'initializing',
-  SELECTING_HANDS = 'selecting_hands',
   CALIBRATING = 'calibrating',
   ACTIVE = 'active',
   ERROR = 'error',
@@ -47,10 +44,8 @@ export class Application {
   private poseDetector: PoseDetector;
   private calibrator: Calibrator;
   private calibrationUI: CalibrationUI;
-  private wandHandSelector: WandHandSelector | null = null;
   private strokeCapture: StrokeCapture | null = null;
   private gestureRecognizer: GestureRecognizer | null = null;
-  private templateRecorder: TemplateRecorder | null = null;
   private renderer: Renderer;
   private tuningUI: ThresholdTuningUI | null = null;
   
@@ -58,7 +53,6 @@ export class Application {
   private state: AppState = AppState.NOT_STARTED;
   private isRunning: boolean = false;
   private calibrationCompleted: boolean = false;
-  private isTrainingMode: boolean = false;
   private animationFrameId: number | null = null;
   
   // Pose data
@@ -99,9 +93,7 @@ export class Application {
   // DOM elements
   private canvas: HTMLCanvasElement;
   private startBtn: HTMLButtonElement;
-  private trainSpellsBtn: HTMLButtonElement;
   private loadingScreen: HTMLDivElement;
-  private calibrationScreen: HTMLDivElement;
   private performanceWarning: HTMLDivElement | null = null;
 
   /**
@@ -111,11 +103,9 @@ export class Application {
     // Get DOM elements
     this.canvas = document.getElementById('canvas') as HTMLCanvasElement;
     this.startBtn = document.getElementById('start-btn') as HTMLButtonElement;
-    this.trainSpellsBtn = document.getElementById('train-spells-btn') as HTMLButtonElement;
     this.loadingScreen = document.getElementById('loading-screen') as HTMLDivElement;
-    this.calibrationScreen = document.getElementById('calibration-screen') as HTMLDivElement;
     
-    if (!this.canvas || !this.startBtn || !this.trainSpellsBtn || !this.loadingScreen || !this.calibrationScreen) {
+    if (!this.canvas || !this.startBtn || !this.loadingScreen) {
       throw new Error('Required DOM elements not found');
     }
     
@@ -208,14 +198,6 @@ export class Application {
       });
     });
     
-    // Train spells button click handler
-    this.trainSpellsBtn.addEventListener('click', () => {
-      this.startTemplateTraining().catch(error => {
-        console.error('Failed to start template training:', error);
-        this.handleError(error);
-      });
-    });
-    
     // Calibration retry handler (R key)
     document.addEventListener('keydown', (e) => {
       if (e.key.toLowerCase() === 'r' && 
@@ -303,55 +285,6 @@ export class Application {
     this.state = AppState.CALIBRATING;
     this.calibrator.startCalibration();
     console.log('Calibration started - assume ready stance');
-  }
-  
-  /**
-   * Start template training flow
-   * 
-   * **Validates: Requirements 9.6, 9.7, 9.8**
-   */
-  async startTemplateTraining(): Promise<void> {
-    try {
-      this.state = AppState.INITIALIZING;
-      this.isTrainingMode = true;
-      console.log('Starting template training...');
-      
-      // Hide loading screen
-      this.loadingScreen.classList.remove('active');
-      
-      // Initialize PoseDetector (requests webcam permission)
-      console.log('Initializing pose detector...');
-      await this.poseDetector.initialize();
-      console.log('Pose detector initialized successfully');
-      
-      // Show canvas for rendering
-      this.canvas.classList.add('active');
-      this.showVideoPreview();
-      
-      // Start hand selection
-      this.state = AppState.SELECTING_HANDS;
-      this.wandHandSelector = new WandHandSelector({
-        canvas: this.canvas,
-        onComplete: (wandHand: WandHand, verified: boolean) => {
-          console.log(`Hand selection complete (training mode): ${wandHand}, verified: ${verified}`);
-          // Set wand hand in calibrator
-          this.calibrator.selectWandHand(wandHand);
-          // Start calibration
-          this.startCalibration();
-        }
-      });
-      this.wandHandSelector.start();
-      
-      // Start main loop
-      this.isRunning = true;
-      this.lastFrameTime = performance.now();
-      this.mainLoop();
-      
-    } catch (error) {
-      console.error('Failed to start template training:', error);
-      this.handleError(error);
-      throw error;
-    }
   }
 
   /**
@@ -1006,47 +939,7 @@ export class Application {
       
       // Start renderer
       this.renderer.start();
-      
-      // If this was initiated from "Train My Spells", start template recorder
-      if (this.isTrainingMode && this.strokeCapture && this.gestureRecognizer) {
-        this.startTemplateRecorder();
-      }
     }, 1000); // 1 second delay to show completion message
-  }
-  
-  /**
-   * Start template recorder
-   * 
-   * **Validates: Requirements 9.6, 9.7, 9.8**
-   */
-  private startTemplateRecorder(): void {
-    if (!this.strokeCapture || !this.gestureRecognizer) {
-      console.error('Cannot start template recorder: components not initialized');
-      return;
-    }
-    
-    this.templateRecorder = new TemplateRecorder({
-      strokeCapture: this.strokeCapture,
-      gestureRecognizer: this.gestureRecognizer,
-      onComplete: () => {
-        console.log('Template training complete');
-        // Return to loading screen
-        this.stop();
-        this.loadingScreen.classList.add('active');
-        this.canvas.classList.remove('active');
-        this.state = AppState.NOT_STARTED;
-      },
-      onCancel: () => {
-        console.log('Template training cancelled');
-        // Return to loading screen
-        this.stop();
-        this.loadingScreen.classList.add('active');
-        this.canvas.classList.remove('active');
-        this.state = AppState.NOT_STARTED;
-      }
-    });
-    
-    this.templateRecorder.start();
   }
 
   /**
