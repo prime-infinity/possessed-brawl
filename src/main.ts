@@ -543,9 +543,6 @@ export class Application {
       // Off-hand raised - ARM spell casting
       this.offHandArmed = true;
       this.currentTrail = [];
-      console.log('═══════════════════════════════════════');
-      console.log('🔵 OFF-HAND ARMED - Ready to cast!');
-      console.log('═══════════════════════════════════════');
     } else if (!offHandRaised && this.offHandArmed) {
       // Off-hand dropped - CAST spell
       this.offHandArmed = false;
@@ -555,12 +552,6 @@ export class Application {
     // Record wand trail when armed
     if (this.offHandArmed && rightWrist.visibility > 0.5) {
       this.currentTrail.push({ x: rightWrist.x, y: rightWrist.y });
-      
-      // Log every 10th point while drawing
-      if (this.currentTrail.length % 10 === 0) {
-        const latest = this.currentTrail[this.currentTrail.length - 1];
-        console.log(`✏️ Drawing... point ${this.currentTrail.length}: (${latest.x.toFixed(4)}, ${latest.y.toFixed(4)})`);
-      }
       
       // Limit trail length
       if (this.currentTrail.length > 100) {
@@ -581,35 +572,9 @@ export class Application {
    * Cast spell - recognize gesture and display result
    */
   private castSpell(): void {
-    console.log('═══════════════════════════════════════');
-    console.log('✨ CASTING SPELL');
-    console.log('═══════════════════════════════════════');
-    
     if (this.currentTrail.length < 10) {
-      console.log(`❌ Trail too short: ${this.currentTrail.length} points (need at least 10)`);
-      console.log('═══════════════════════════════════════');
       return;
     }
-    
-    console.log(`📝 Raw trail captured: ${this.currentTrail.length} points`);
-    console.log(`   First point: (${this.currentTrail[0].x.toFixed(4)}, ${this.currentTrail[0].y.toFixed(4)})`);
-    console.log(`   Mid point:   (${this.currentTrail[Math.floor(this.currentTrail.length/2)].x.toFixed(4)}, ${this.currentTrail[Math.floor(this.currentTrail.length/2)].y.toFixed(4)})`);
-    console.log(`   Last point:  (${this.currentTrail[this.currentTrail.length-1].x.toFixed(4)}, ${this.currentTrail[this.currentTrail.length-1].y.toFixed(4)})`);
-    
-    // Calculate bounding box of raw trail
-    const xs = this.currentTrail.map(p => p.x);
-    const ys = this.currentTrail.map(p => p.y);
-    const minX = Math.min(...xs);
-    const maxX = Math.max(...xs);
-    const minY = Math.min(...ys);
-    const maxY = Math.max(...ys);
-    const width = maxX - minX;
-    const height = maxY - minY;
-    
-    console.log(`📏 Raw trail bounding box:`);
-    console.log(`   X range: ${minX.toFixed(4)} to ${maxX.toFixed(4)} (width: ${width.toFixed(4)})`);
-    console.log(`   Y range: ${minY.toFixed(4)} to ${maxY.toFixed(4)} (height: ${height.toFixed(4)})`);
-    console.log(`   Aspect ratio: ${(width/height).toFixed(3)}`);
     
     // Initialize gesture recognizer if not exists
     if (!this.gestureRecognizer) {
@@ -622,23 +587,12 @@ export class Application {
       timestamp: Date.now()
     };
     
-    console.log('🔄 Sending to GestureRecognizer...');
-    
     // Recognize the gesture
     const result = this.gestureRecognizer.recognize(stroke);
     
     if (result) {
       this.lastRecognizedSpell = result;
       this.spellDisplayTimer = 0;
-      console.log('═══════════════════════════════════════');
-      console.log(`🎯 SPELL RECOGNIZED: ${result.type}`);
-      console.log(`   Confidence: ${(result.confidence * 100).toFixed(1)}%`);
-      console.log(`   Match score: ${result.matchScore.toFixed(4)}`);
-      console.log('═══════════════════════════════════════');
-    } else {
-      console.log('═══════════════════════════════════════');
-      console.log('❌ No spell recognized (all above rejection threshold)');
-      console.log('═══════════════════════════════════════');
     }
     
     // Clear trail
