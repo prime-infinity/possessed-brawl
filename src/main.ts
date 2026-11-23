@@ -260,6 +260,9 @@ export class Application {
       this.canvas.classList.add('active');
       this.showVideoPreview();
       
+      // Show initial instruction overlay
+      this.showInitialInstructions();
+      
       // SKIP hand selection and calibration - go directly to active state
       console.log('⚠️ SKIPPING hand selection and calibration');
       console.log('📊 Will log wrist detection every second...');
@@ -275,6 +278,141 @@ export class Application {
       console.error('Failed to start application:', error);
       this.handleError(error);
       throw error;
+    }
+  }
+
+  /**
+   * Show initial instructions with stick figure
+   */
+  private showInitialInstructions(): void {
+    const overlay = document.createElement('div');
+    overlay.id = 'initial-instructions-overlay';
+    overlay.style.cssText = `
+      position: fixed;
+      top: 50%;
+      left: 50%;
+      transform: translate(-50%, -50%);
+      background: rgba(0, 0, 0, 0.95);
+      color: white;
+      padding: clamp(20px, 4vw, 40px);
+      border-radius: 15px;
+      font-family: Arial, sans-serif;
+      text-align: center;
+      z-index: 10001;
+      border: 3px solid #00ff41;
+      max-width: 90%;
+      max-height: 90vh;
+      overflow: auto;
+    `;
+    
+    overlay.innerHTML = `
+      <h2 style="font-size: clamp(20px, 5vw, 28px); margin-bottom: clamp(10px, 2vh, 20px); color: #00ff41;">Raise Both Hands</h2>
+      <p style="font-size: clamp(14px, 3.5vw, 18px); color: #ccc; margin-bottom: clamp(15px, 3vh, 30px);">Position yourself so the camera can see both your hands</p>
+      <canvas id="instruction-canvas" width="300" height="250" style="margin: 0 auto; display: block; max-width: 100%;"></canvas>
+      <p style="font-size: clamp(12px, 2.5vw, 14px); color: #888; margin-top: clamp(10px, 2vh, 20px);">The overlay will disappear once pose is detected</p>
+    `;
+    
+    document.body.appendChild(overlay);
+    
+    // Draw stick figure on canvas
+    const canvas = overlay.querySelector('#instruction-canvas') as HTMLCanvasElement;
+    if (canvas) {
+      this.drawInstructionStickFigure(canvas);
+    }
+  }
+
+  /**
+   * Draw stick figure with both hands raised (waist-up only)
+   */
+  private drawInstructionStickFigure(canvas: HTMLCanvasElement): void {
+    const ctx = canvas.getContext('2d');
+    if (!ctx) return;
+    
+    const centerX = canvas.width / 2;
+    const centerY = canvas.height / 2 + 20; // Shift down slightly
+    const scale = 70;
+    
+    ctx.strokeStyle = '#00ff41';
+    ctx.fillStyle = '#00ff41';
+    ctx.lineWidth = 4;
+    ctx.lineCap = 'round';
+    ctx.lineJoin = 'round';
+    
+    // Head
+    const headRadius = scale * 0.2;
+    ctx.beginPath();
+    ctx.arc(centerX, centerY - scale * 1.2, headRadius, 0, Math.PI * 2);
+    ctx.stroke();
+    
+    // Torso (body line)
+    const shoulderY = centerY - scale * 0.9;
+    const hipY = centerY + scale * 0.2;
+    ctx.beginPath();
+    ctx.moveTo(centerX, shoulderY);
+    ctx.lineTo(centerX, hipY);
+    ctx.stroke();
+    
+    // Shoulders line
+    const shoulderHalfWidth = scale * 0.5;
+    ctx.beginPath();
+    ctx.moveTo(centerX - shoulderHalfWidth, shoulderY);
+    ctx.lineTo(centerX + shoulderHalfWidth, shoulderY);
+    ctx.stroke();
+    
+    // LEFT ARM - RAISED (OFF-HAND)
+    const leftShoulderX = centerX - shoulderHalfWidth;
+    const leftElbowX = centerX - scale * 0.6;
+    const leftElbowY = centerY - scale * 0.6;
+    const leftWristX = centerX - scale * 0.65;
+    const leftWristY = centerY - scale * 1.1;  // Raised above shoulder
+    
+    ctx.beginPath();
+    ctx.moveTo(leftShoulderX, shoulderY);
+    ctx.lineTo(leftElbowX, leftElbowY);
+    ctx.lineTo(leftWristX, leftWristY);
+    ctx.stroke();
+    
+    // LEFT HAND - glowing circle
+    ctx.shadowBlur = 15;
+    ctx.shadowColor = 'rgba(0, 191, 255, 0.8)';
+    ctx.fillStyle = 'rgba(0, 191, 255, 0.6)';
+    ctx.beginPath();
+    ctx.arc(leftWristX, leftWristY, 14, 0, Math.PI * 2);
+    ctx.fill();
+    ctx.shadowBlur = 0;
+    
+    // RIGHT ARM - RAISED (WAND HAND)
+    const rightShoulderX = centerX + shoulderHalfWidth;
+    const rightElbowX = centerX + scale * 0.6;
+    const rightElbowY = centerY - scale * 0.6;
+    const rightWristX = centerX + scale * 0.65;
+    const rightWristY = centerY - scale * 1.1;  // Raised above shoulder
+    
+    ctx.strokeStyle = '#00ff41';
+    ctx.fillStyle = '#00ff41';
+    ctx.beginPath();
+    ctx.moveTo(rightShoulderX, shoulderY);
+    ctx.lineTo(rightElbowX, rightElbowY);
+    ctx.lineTo(rightWristX, rightWristY);
+    ctx.stroke();
+    
+    // RIGHT HAND - glowing circle
+    ctx.shadowBlur = 15;
+    ctx.shadowColor = 'rgba(255, 215, 0, 0.8)';
+    ctx.fillStyle = 'rgba(255, 215, 0, 0.6)';
+    ctx.beginPath();
+    ctx.arc(rightWristX, rightWristY, 14, 0, Math.PI * 2);
+    ctx.fill();
+    ctx.shadowBlur = 0;
+  }
+
+  /**
+   * Remove initial instructions overlay
+   */
+  private removeInitialInstructions(): void {
+    const overlay = document.getElementById('initial-instructions-overlay');
+    if (overlay) {
+      overlay.remove();
     }
   }
   
@@ -459,6 +597,9 @@ export class Application {
    */
   private processSpellCasting(deltaTime: number): void {
     if (!this.currentLandmarks) return;
+    
+    // Remove initial instructions once landmarks are detected
+    this.removeInitialInstructions();
     
     const leftWrist = this.currentLandmarks.points[15]; // OFF-HAND
     const rightWrist = this.currentLandmarks.points[16]; // WAND HAND
