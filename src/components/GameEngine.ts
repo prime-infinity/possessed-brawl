@@ -75,6 +75,10 @@ export interface GameConfig {
   roundDuration: number;    // Seconds
   playerPosition: { x: number; y: number };
   aiPosition: { x: number; y: number };
+  // Scoring configuration
+  hitPoints: number;        // Points awarded per successful spell hit
+  comboMultiplier: number;  // Multiplier increase per combo hit (e.g., 0.2 = +20%)
+  roundWinBonus: number;    // Bonus points for winning a round
 }
 
 /**
@@ -86,7 +90,10 @@ export const DEFAULT_GAME_CONFIG: GameConfig = {
   manaRegenRate: 5,  // 5 mana per second
   roundDuration: 90,  // 90 seconds
   playerPosition: { x: 200, y: 300 },
-  aiPosition: { x: 600, y: 300 }
+  aiPosition: { x: 600, y: 300 },
+  hitPoints: 10,       // 10 points per hit
+  comboMultiplier: 0.2, // +20% per combo hit
+  roundWinBonus: 100   // 100 points for winning a round
 };
 
 /**
@@ -198,17 +205,23 @@ export class GameEngine {
 
   /**
    * Cast a spell for the player
-   * **Validates: Requirements 15.1-15.2, 16.1-16.6**
+   * **Validates: Requirements 15.1-15.2, 16.1-16.6, 19.1-19.3**
    */
   public castPlayerSpell(spell: RecognizedSpell): CastResult {
     const result = this.castSpell(this.state.playerWizard, this.state.aiWizard, spell.type);
     
-    // Update combo tracking
+    // Update combo tracking and scoring
     if (result.success && result.resolution && result.resolution.damage > 0) {
+      // Successful hit - award points with combo multiplier
       this.state.playerCombo++;
       this.state.aiCombo = 0;
+      
+      // Calculate points with combo multiplier
+      const comboMultiplier = 1 + (this.state.playerCombo - 1) * this.config.comboMultiplier;
+      const points = Math.floor(this.config.hitPoints * comboMultiplier);
+      this.state.playerScore += points;
     } else if (!result.success || (result.resolution && result.resolution.blocked)) {
-      this.state.aiCombo++;
+      // Miss or blocked - reset player combo
       this.state.playerCombo = 0;
     }
     
@@ -217,17 +230,23 @@ export class GameEngine {
 
   /**
    * Cast a spell for the AI
-   * **Validates: Requirements 15.1-15.2, 16.1-16.6**
+   * **Validates: Requirements 15.1-15.2, 16.1-16.6, 19.1-19.3**
    */
   public castAISpell(spellType: SpellType): CastResult {
     const result = this.castSpell(this.state.aiWizard, this.state.playerWizard, spellType);
     
-    // Update combo tracking
+    // Update combo tracking and scoring
     if (result.success && result.resolution && result.resolution.damage > 0) {
+      // Successful hit - award points with combo multiplier
       this.state.aiCombo++;
       this.state.playerCombo = 0;
+      
+      // Calculate points with combo multiplier
+      const comboMultiplier = 1 + (this.state.aiCombo - 1) * this.config.comboMultiplier;
+      const points = Math.floor(this.config.hitPoints * comboMultiplier);
+      this.state.aiScore += points;
     } else if (!result.success || (result.resolution && result.resolution.blocked)) {
-      this.state.playerCombo++;
+      // Miss or blocked - reset AI combo
       this.state.aiCombo = 0;
     }
     
@@ -320,32 +339,47 @@ export class GameEngine {
 
   /**
    * End the current round
-   * **Validates: Requirements 18.2-18.5**
+   * **Validates: Requirements 18.2-18.5, 19.4**
    */
   private endRound(): void {
     this.state.matchState = MatchState.ROUND_END;
-    // Winner determination will be handled by checkRoundEnd()
+    
+    // Determine winner and award round win bonus
+    const winner = this.determineWinner();
+    if (winner === 'player') {
+      this.state.playerScore += this.config.roundWinBonus;
+    } else if (winner === 'ai') {
+      this.state.aiScore += this.config.roundWinBonus;
+    }
+  }
+
+  /**
+   * Determine round winner based on current health
+   * **Validates: Requirements 18.3-18.5**
+   */
+  private determineWinner(): 'player' | 'ai' | 'draw' {
+    const playerHealth = this.state.playerWizard.health;
+    const aiHealth = this.state.aiWizard.health;
+
+    if (playerHealth > aiHealth) {
+      return 'player';
+    } else if (aiHealth > playerHealth) {
+      return 'ai';
+    } else {
+      return 'draw';
+    }
   }
 
   /**
    * Check if round has ended and determine winner
-   * **Validates: Requirements 18.2-18.5**
+   * **Validates: Requirements 18.2-18.7**
    */
   public checkRoundEnd(): { winner: 'player' | 'ai' | 'draw' } | null {
     if (this.state.matchState !== MatchState.ROUND_END) {
       return null;
     }
 
-    const playerHealth = this.state.playerWizard.health;
-    const aiHealth = this.state.aiWizard.health;
-
-    if (playerHealth > aiHealth) {
-      return { winner: 'player' };
-    } else if (aiHealth > playerHealth) {
-      return { winner: 'ai' };
-    } else {
-      return { winner: 'draw' };
-    }
+    return { winner: this.determineWinner() };
   }
 
   /**
@@ -398,5 +432,55 @@ export class GameEngine {
    */
   public getSpellSystem(): SpellSystem {
     return this.spellSystem;
+  }
+
+  /**
+   * Get round timer in seconds
+   * **Validates: Requirement 18.1, 18.6**
+   */
+  public getRoundTimer(): number {
+    return this.state.roundTimer;
+  }
+
+  /**
+   * Get formatted round timer (MM:SS)
+   * **Validates: Requirement 18.6**
+   */
+  public getFormattedTimer(): string {
+    const minutes = Math.floor(this.state.roundTimer / 60);
+    const seconds = Math.floor(this.state.roundTimer % 60);
+    return `${minutes}:${seconds.toString().padStart(2, '0')}`;
+  }
+
+  /**
+   * Get player score
+   * **Validates: Requirement 19.4**
+   */
+  public getPlayerScore(): number {
+    return this.state.playerScore;
+  }
+
+  /**
+   * Get AI score
+   * **Validates: Requirement 19.4**
+   */
+  public getAIScore(): number {
+    return this.state.aiScore;
+  }
+
+  /**
+   * Get player combo
+   * **Validates: Requirement 19.2**
+   */
+  public getPlayerCombo(): number {
+    return this.state.playerCombo;
+  }
+
+  /**
+   * Get AI combo
+   * **Validates: Requirement 19.2**
+   */
+  public getAICombo(): number {
+    return this.state.aiCombo;
   }
 }

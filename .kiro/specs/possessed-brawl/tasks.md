@@ -281,21 +281,21 @@ The implementation uses **TypeScript** for type safety, **MediaPipe Pose** for b
 
 #### Round and Match Management
 
-- [ ] 16. Implement round and match management
-  - [ ] 16.1 Implement round timer
+- [x] 16. Implement round and match management
+  - [x] 16.1 Implement round timer
     - Initialize countdown from configurable duration (e.g., 90 seconds)
     - Update timer each frame (deltaTime)
     - Display timer on UI
     - Trigger round end when timer reaches zero
     - _Requirements: 18.1, 18.2, 18.6_
 
-  - [ ] 16.2 Implement round end conditions
+  - [x] 16.2 Implement round end conditions
     - End round when timer expires → winner = higher health
     - End round when wizard health reaches zero → winner = other wizard
     - Display round result screen
     - _Requirements: 18.2, 18.3, 18.4, 18.5, 18.7_
 
-  - [ ] 16.3 Implement scoring system
+  - [x] 16.3 Implement scoring system
     - Award points for successful spell hits
     - Track combos (consecutive hits without being hit)
     - Apply combo multiplier (e.g., +20% per combo hit)

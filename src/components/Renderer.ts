@@ -79,6 +79,21 @@ export interface RenderState {
   };
   
   /**
+   * Game state (Stage 2)
+   */
+  game?: {
+    roundTimer: string;        // Formatted timer (MM:SS)
+    playerScore: number;
+    aiScore: number;
+    playerCombo: number;
+    aiCombo: number;
+    playerHealth: number;      // 0-100
+    aiHealth: number;          // 0-100
+    playerMana: number;        // 0-100
+    aiMana: number;           // 0-100
+  };
+  
+  /**
    * Current frames per second
    */
   fps?: number;
@@ -315,6 +330,11 @@ export class Renderer {
         this.drawSpellResult(this.currentState.spell.recognizedSpell);
         this.drawSpellEffect(this.currentState.spell.recognizedSpell);
       }
+    }
+    
+    // Draw game UI (Stage 2)
+    if (this.currentState.game) {
+      this.drawGameUI(this.currentState.game);
     }
     
     // Draw debug overlay if enabled
@@ -1106,6 +1126,222 @@ export class Renderer {
       width: this.width,
       height: this.height
     };
+  }
+
+  /**
+   * Draw game UI overlay (round timer, scores, combos)
+   * **Validates: Requirements 18.6, 19.4**
+   */
+  public drawGameUI(gameState: RenderState['game']): void {
+    if (!gameState) return;
+
+    this.ctx.save();
+
+    // Add text shadow for visibility
+    this.ctx.shadowColor = 'rgba(0, 0, 0, 0.8)';
+    this.ctx.shadowBlur = 4;
+
+    // Draw round timer at top center
+    this.drawRoundTimer(gameState.roundTimer);
+
+    // Draw scores at top left and right
+    this.drawScores(gameState.playerScore, gameState.aiScore);
+
+    // Draw combos below scores
+    this.drawCombos(gameState.playerCombo, gameState.aiCombo);
+
+    // Draw health and mana bars
+    this.drawHealthBars(gameState.playerHealth, gameState.aiHealth);
+    this.drawManaBars(gameState.playerMana, gameState.aiMana);
+
+    this.ctx.restore();
+  }
+
+  /**
+   * Draw round timer
+   * **Validates: Requirement 18.6**
+   */
+  private drawRoundTimer(timer: string): void {
+    const centerX = this.width / 2;
+    const y = 30;
+
+    this.ctx.fillStyle = '#ffffff';
+    this.ctx.font = 'bold 36px monospace';
+    this.ctx.textAlign = 'center';
+    this.ctx.textBaseline = 'top';
+
+    // Check if time is running out (< 10 seconds) for warning color
+    const timeParts = timer.split(':');
+    const totalSeconds = parseInt(timeParts[0]) * 60 + parseInt(timeParts[1]);
+    
+    if (totalSeconds <= 10 && totalSeconds > 0) {
+      // Flash red when time is running out
+      const flash = Math.floor(Date.now() / 500) % 2 === 0;
+      this.ctx.fillStyle = flash ? '#ff0000' : '#ffffff';
+    }
+
+    this.ctx.fillText(timer, centerX, y);
+  }
+
+  /**
+   * Draw player and AI scores
+   * **Validates: Requirement 19.4**
+   */
+  private drawScores(playerScore: number, aiScore: number): void {
+    this.ctx.font = 'bold 24px monospace';
+    this.ctx.textBaseline = 'top';
+
+    // Player score (left)
+    this.ctx.fillStyle = '#00ff41';
+    this.ctx.textAlign = 'left';
+    this.ctx.fillText(`P: ${playerScore}`, 20, 20);
+
+    // AI score (right)
+    this.ctx.fillStyle = '#ff4136';
+    this.ctx.textAlign = 'right';
+    this.ctx.fillText(`AI: ${aiScore}`, this.width - 20, 20);
+  }
+
+  /**
+   * Draw combo indicators
+   * **Validates: Requirement 19.2**
+   */
+  private drawCombos(playerCombo: number, aiCombo: number): void {
+    if (playerCombo === 0 && aiCombo === 0) return;
+
+    this.ctx.font = 'bold 18px monospace';
+    this.ctx.textBaseline = 'top';
+
+    // Player combo (left)
+    if (playerCombo > 0) {
+      this.ctx.fillStyle = '#ffff00';
+      this.ctx.textAlign = 'left';
+      this.ctx.fillText(`${playerCombo}x COMBO!`, 20, 50);
+    }
+
+    // AI combo (right)
+    if (aiCombo > 0) {
+      this.ctx.fillStyle = '#ffff00';
+      this.ctx.textAlign = 'right';
+      this.ctx.fillText(`${aiCombo}x COMBO!`, this.width - 20, 50);
+    }
+  }
+
+  /**
+   * Draw health bars for both wizards
+   * **Validates: Requirements 14.3, 14.4**
+   */
+  private drawHealthBars(playerHealth: number, aiHealth: number): void {
+    const barWidth = 200;
+    const barHeight = 20;
+    const y = this.height - 60;
+
+    // Player health bar (left)
+    this.drawBar(
+      20,
+      y,
+      barWidth,
+      barHeight,
+      playerHealth,
+      100,
+      this.getHealthColor(playerHealth),
+      'HP'
+    );
+
+    // AI health bar (right)
+    this.drawBar(
+      this.width - 20 - barWidth,
+      y,
+      barWidth,
+      barHeight,
+      aiHealth,
+      100,
+      this.getHealthColor(aiHealth),
+      'HP'
+    );
+  }
+
+  /**
+   * Draw mana bars for both wizards
+   * **Validates: Requirements 14.5, 14.6**
+   */
+  private drawManaBars(playerMana: number, aiMana: number): void {
+    const barWidth = 200;
+    const barHeight = 15;
+    const y = this.height - 35;
+
+    // Player mana bar (left)
+    this.drawBar(
+      20,
+      y,
+      barWidth,
+      barHeight,
+      playerMana,
+      100,
+      '#1e90ff',
+      'MP'
+    );
+
+    // AI mana bar (right)
+    this.drawBar(
+      this.width - 20 - barWidth,
+      y,
+      barWidth,
+      barHeight,
+      aiMana,
+      100,
+      '#1e90ff',
+      'MP'
+    );
+  }
+
+  /**
+   * Draw a resource bar with label
+   */
+  private drawBar(
+    x: number,
+    y: number,
+    width: number,
+    height: number,
+    value: number,
+    maxValue: number,
+    color: string,
+    label: string
+  ): void {
+    const fillWidth = (value / maxValue) * width;
+
+    // Background (empty bar)
+    this.ctx.fillStyle = 'rgba(0, 0, 0, 0.5)';
+    this.ctx.fillRect(x, y, width, height);
+
+    // Filled portion
+    this.ctx.fillStyle = color;
+    this.ctx.fillRect(x, y, fillWidth, height);
+
+    // Border
+    this.ctx.strokeStyle = '#ffffff';
+    this.ctx.lineWidth = 2;
+    this.ctx.strokeRect(x, y, width, height);
+
+    // Label
+    this.ctx.fillStyle = '#ffffff';
+    this.ctx.font = 'bold 12px monospace';
+    this.ctx.textAlign = 'left';
+    this.ctx.textBaseline = 'middle';
+    this.ctx.fillText(`${label}: ${Math.floor(value)}`, x + 5, y + height / 2);
+  }
+
+  /**
+   * Get health bar color based on health percentage
+   */
+  private getHealthColor(health: number): string {
+    if (health > 60) {
+      return '#00ff00'; // Green
+    } else if (health > 30) {
+      return '#ffff00'; // Yellow
+    } else {
+      return '#ff0000'; // Red
+    }
   }
   
   /**

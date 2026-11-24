@@ -1,0 +1,301 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+  <meta charset="UTF-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1.0">
+  <title>Game UI Demo - Round Timer and Scoring</title>
+  <style>
+    body {
+      margin: 0;
+      padding: 20px;
+      background: #1a1a1a;
+      color: #fff;
+      font-family: monospace;
+      display: flex;
+      flex-direction: column;
+      align-items: center;
+      gap: 20px;
+    }
+    h1 {
+      color: #00ff41;
+    }
+    canvas {
+      border: 2px solid #00ff41;
+      background: #000;
+    }
+    .controls {
+      display: flex;
+      gap: 10px;
+      flex-wrap: wrap;
+      justify-content: center;
+    }
+    button {
+      background: #00ff41;
+      border: none;
+      padding: 10px 20px;
+      color: #000;
+      font-weight: bold;
+      font-family: monospace;
+      cursor: pointer;
+      font-size: 14px;
+    }
+    button:hover {
+      background: #00cc33;
+    }
+    button:active {
+      background: #009922;
+    }
+    .info {
+      text-align: center;
+      max-width: 800px;
+    }
+  </style>
+</head>
+<body>
+  <h1>🎮 Game UI Demo - Round Management & Scoring</h1>
+  
+  <div class="info">
+    <p>This demo shows the round timer, scores, combos, and health/mana bars implemented in task 16.</p>
+    <p>Use the controls below to simulate game events.</p>
+  </div>
+
+  <canvas id="gameCanvas" width="800" height="600"></canvas>
+  
+  <div class="controls">
+    <button onclick="startRound()">▶️ Start Round</button>
+    <button onclick="playerHit()">👊 Player Hit</button>
+    <button onclick="aiHit()">🤖 AI Hit</button>
+    <button onclick="playerBlocked()">🛡️ Player Blocked</button>
+    <button onclick="damagePlayer()">💔 Damage Player</button>
+    <button onclick="damageAI()">💔 Damage AI</button>
+    <button onclick="useMana()">⚡ Use Mana</button>
+    <button onclick="endRound()">🏁 End Round</button>
+    <button onclick="reset()">🔄 Reset</button>
+  </div>
+
+  <script type="module">
+    const canvas = document.getElementById('gameCanvas');
+    const ctx = canvas.getContext('2d');
+
+    let gameState = {
+      roundTimer: '1:30',
+      playerScore: 0,
+      aiScore: 0,
+      playerCombo: 0,
+      aiCombo: 0,
+      playerHealth: 100,
+      aiHealth: 100,
+      playerMana: 100,
+      aiMana: 100,
+      timerSeconds: 90,
+      isRunning: false
+    };
+
+    let animationId = null;
+    let lastTime = 0;
+
+    // Make functions global for button onclick
+    window.startRound = () => {
+      gameState.isRunning = true;
+      gameState.timerSeconds = 90;
+      if (!animationId) {
+        lastTime = performance.now();
+        animate(lastTime);
+      }
+    };
+
+    window.playerHit = () => {
+      gameState.playerCombo++;
+      gameState.aiCombo = 0;
+      const comboMultiplier = 1 + (gameState.playerCombo - 1) * 0.2;
+      const points = Math.floor(10 * comboMultiplier);
+      gameState.playerScore += points;
+      gameState.aiHealth = Math.max(0, gameState.aiHealth - 20);
+    };
+
+    window.aiHit = () => {
+      gameState.aiCombo++;
+      gameState.playerCombo = 0;
+      const comboMultiplier = 1 + (gameState.aiCombo - 1) * 0.2;
+      const points = Math.floor(10 * comboMultiplier);
+      gameState.aiScore += points;
+      gameState.playerHealth = Math.max(0, gameState.playerHealth - 20);
+    };
+
+    window.playerBlocked = () => {
+      gameState.playerCombo = 0;
+    };
+
+    window.damagePlayer = () => {
+      gameState.playerHealth = Math.max(0, gameState.playerHealth - 15);
+    };
+
+    window.damageAI = () => {
+      gameState.aiHealth = Math.max(0, gameState.aiHealth - 15);
+    };
+
+    window.useMana = () => {
+      gameState.playerMana = Math.max(0, gameState.playerMana - 25);
+      gameState.aiMana = Math.max(0, gameState.aiMana - 25);
+    };
+
+    window.endRound = () => {
+      gameState.isRunning = false;
+      gameState.timerSeconds = 0;
+      
+      // Award round win bonus
+      if (gameState.playerHealth > gameState.aiHealth) {
+        gameState.playerScore += 100;
+      } else if (gameState.aiHealth > gameState.playerHealth) {
+        gameState.aiScore += 100;
+      }
+    };
+
+    window.reset = () => {
+      gameState = {
+        roundTimer: '1:30',
+        playerScore: 0,
+        aiScore: 0,
+        playerCombo: 0,
+        aiCombo: 0,
+        playerHealth: 100,
+        aiHealth: 100,
+        playerMana: 100,
+        aiMana: 100,
+        timerSeconds: 90,
+        isRunning: false
+      };
+    };
+
+    function formatTimer(seconds) {
+      const mins = Math.floor(seconds / 60);
+      const secs = Math.floor(seconds % 60);
+      return `${mins}:${secs.toString().padStart(2, '0')}`;
+    }
+
+    function getHealthColor(health) {
+      if (health > 60) return '#00ff00';
+      if (health > 30) return '#ffff00';
+      return '#ff0000';
+    }
+
+    function drawBar(x, y, width, height, value, maxValue, color, label) {
+      const fillWidth = (value / maxValue) * width;
+
+      // Background
+      ctx.fillStyle = 'rgba(0, 0, 0, 0.5)';
+      ctx.fillRect(x, y, width, height);
+
+      // Fill
+      ctx.fillStyle = color;
+      ctx.fillRect(x, y, fillWidth, height);
+
+      // Border
+      ctx.strokeStyle = '#ffffff';
+      ctx.lineWidth = 2;
+      ctx.strokeRect(x, y, width, height);
+
+      // Label
+      ctx.fillStyle = '#ffffff';
+      ctx.font = 'bold 12px monospace';
+      ctx.textAlign = 'left';
+      ctx.textBaseline = 'middle';
+      ctx.fillText(`${label}: ${Math.floor(value)}`, x + 5, y + height / 2);
+    }
+
+    function render() {
+      // Clear
+      ctx.fillStyle = '#1a1a1a';
+      ctx.fillRect(0, 0, canvas.width, canvas.height);
+
+      ctx.save();
+      ctx.shadowColor = 'rgba(0, 0, 0, 0.8)';
+      ctx.shadowBlur = 4;
+
+      // Round timer
+      const centerX = canvas.width / 2;
+      ctx.fillStyle = '#ffffff';
+      ctx.font = 'bold 36px monospace';
+      ctx.textAlign = 'center';
+      ctx.textBaseline = 'top';
+      
+      if (gameState.timerSeconds <= 10 && gameState.timerSeconds > 0) {
+        const flash = Math.floor(Date.now() / 500) % 2 === 0;
+        ctx.fillStyle = flash ? '#ff0000' : '#ffffff';
+      }
+      
+      ctx.fillText(gameState.roundTimer, centerX, 30);
+
+      // Scores
+      ctx.font = 'bold 24px monospace';
+      ctx.fillStyle = '#00ff41';
+      ctx.textAlign = 'left';
+      ctx.textBaseline = 'top';
+      ctx.fillText(`P: ${gameState.playerScore}`, 20, 20);
+
+      ctx.fillStyle = '#ff4136';
+      ctx.textAlign = 'right';
+      ctx.fillText(`AI: ${gameState.aiScore}`, canvas.width - 20, 20);
+
+      // Combos
+      if (gameState.playerCombo > 0) {
+        ctx.fillStyle = '#ffff00';
+        ctx.textAlign = 'left';
+        ctx.font = 'bold 18px monospace';
+        ctx.fillText(`${gameState.playerCombo}x COMBO!`, 20, 50);
+      }
+
+      if (gameState.aiCombo > 0) {
+        ctx.fillStyle = '#ffff00';
+        ctx.textAlign = 'right';
+        ctx.font = 'bold 18px monospace';
+        ctx.fillText(`${gameState.aiCombo}x COMBO!`, canvas.width - 20, 50);
+      }
+
+      // Health bars
+      const barWidth = 200;
+      const barHeight = 20;
+      const healthY = canvas.height - 60;
+
+      drawBar(20, healthY, barWidth, barHeight, gameState.playerHealth, 100, 
+              getHealthColor(gameState.playerHealth), 'HP');
+      drawBar(canvas.width - 20 - barWidth, healthY, barWidth, barHeight, 
+              gameState.aiHealth, 100, getHealthColor(gameState.aiHealth), 'HP');
+
+      // Mana bars
+      const manaY = canvas.height - 35;
+      drawBar(20, manaY, barWidth, 15, gameState.playerMana, 100, '#1e90ff', 'MP');
+      drawBar(canvas.width - 20 - barWidth, manaY, barWidth, 15, 
+              gameState.aiMana, 100, '#1e90ff', 'MP');
+
+      ctx.restore();
+    }
+
+    function animate(currentTime) {
+      const deltaTime = currentTime - lastTime;
+      lastTime = currentTime;
+
+      // Update timer
+      if (gameState.isRunning && gameState.timerSeconds > 0) {
+        gameState.timerSeconds -= deltaTime / 1000;
+        if (gameState.timerSeconds <= 0) {
+          gameState.timerSeconds = 0;
+          gameState.isRunning = false;
+          window.endRound();
+        }
+        gameState.roundTimer = formatTimer(gameState.timerSeconds);
+
+        // Regenerate mana
+        gameState.playerMana = Math.min(100, gameState.playerMana + 5 * (deltaTime / 1000));
+        gameState.aiMana = Math.min(100, gameState.aiMana + 5 * (deltaTime / 1000));
+      }
+
+      render();
+      animationId = requestAnimationFrame(animate);
+    }
+
+    // Start rendering
+    render();
+  </script>
+</body>
+</html>
