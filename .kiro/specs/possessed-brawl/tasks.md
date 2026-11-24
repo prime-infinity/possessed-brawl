@@ -315,35 +315,35 @@ The implementation uses **TypeScript** for type safety, **MediaPipe Pose** for b
 
 #### Game Rendering (Stage 2)
 
-- [ ] 17. Implement game renderer (replace Stage 1 placeholder effects)
-  - [ ] 17.1 Implement stick figure wizards
+- [x] 17. Implement game renderer (replace Stage 1 placeholder effects)
+  - [x] 17.1 Implement stick figure wizards
     - Draw player wizard on left side
     - Draw AI wizard on right side
     - Draw as stick figures (head, torso, arms)
     - Update pose to reflect casting (arm raised for wand hand)
     - _Requirements: 13.1, 13.2, 13.3, 13.4_
 
-  - [ ] 17.2 Implement UI bar rendering
+  - [x] 17.2 Implement UI bar rendering
     - Draw health bars for both wizards (color gradient: green → yellow → red)
     - Draw mana bars for both wizards (blue gradient)
     - Draw bars with labels and borders
     - _Requirements: 14.3, 14.4, 14.5, 14.6_
 
-  - [ ] 17.3 Implement game UI elements
+  - [x] 17.3 Implement game UI elements
     - Draw round timer (countdown)
     - Draw score displays for both wizards
     - Draw combo counters
     - Draw taunt text bubbles (speech bubbles above AI wizard)
     - _Requirements: 18.6, 19.4_
 
-  - [ ] 17.4 Implement full spell effects (replace Stage 1 placeholders)
+  - [x] 17.4 Implement full spell effects (replace Stage 1 placeholders)
     - Shield: glowing shield outline with particles
     - Lightning: animated lightning bolt with flash
     - Fireball: fireball projectile with trail and impact
     - Frost: frost wave expanding with ice particles
     - _Requirements: 16.1, 16.2, 16.3, 16.4_
 
-  - [ ] 17.5 Maintain debug overlay (toggle with D key)
+  - [x] 17.5 Maintain debug overlay (toggle with D key)
     - Keep debug mode from Stage 1
     - Add game state info (health, mana, active effects)
     - _Requirements: 12.8_

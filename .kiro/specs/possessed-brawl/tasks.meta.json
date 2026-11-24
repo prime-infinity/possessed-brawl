@@ -650,6 +650,78 @@
         "chatSessionId": "sess_10e7ab42-face-4e07-968b-2e2982a52331",
         "timestamp": 1795517077515
       }
+    ],
+    "17. Implement game renderer (replace Stage 1 placeholder effects)": [
+      {
+        "executionId": "7d2a1a3c-fde8-4cf8-87af-cfc8cbdc36fe",
+        "chatSessionId": "sess_10e7ab42-face-4e07-968b-2e2982a52331",
+        "timestamp": 1795517314516
+      },
+      {
+        "executionId": "7d2a1a3c-fde8-4cf8-87af-cfc8cbdc36fe",
+        "chatSessionId": "sess_10e7ab42-face-4e07-968b-2e2982a52331",
+        "timestamp": 1795517734677
+      }
+    ],
+    "17.1 Implement stick figure wizards": [
+      {
+        "executionId": "7d2a1a3c-fde8-4cf8-87af-cfc8cbdc36fe",
+        "chatSessionId": "sess_10e7ab42-face-4e07-968b-2e2982a52331",
+        "timestamp": 1795517645523
+      },
+      {
+        "executionId": "7d2a1a3c-fde8-4cf8-87af-cfc8cbdc36fe",
+        "chatSessionId": "sess_10e7ab42-face-4e07-968b-2e2982a52331",
+        "timestamp": 1795517659124
+      }
+    ],
+    "17.2 Implement UI bar rendering": [
+      {
+        "executionId": "7d2a1a3c-fde8-4cf8-87af-cfc8cbdc36fe",
+        "chatSessionId": "sess_10e7ab42-face-4e07-968b-2e2982a52331",
+        "timestamp": 1795517663544
+      },
+      {
+        "executionId": "7d2a1a3c-fde8-4cf8-87af-cfc8cbdc36fe",
+        "chatSessionId": "sess_10e7ab42-face-4e07-968b-2e2982a52331",
+        "timestamp": 1795517680713
+      }
+    ],
+    "17.3 Implement game UI elements": [
+      {
+        "executionId": "7d2a1a3c-fde8-4cf8-87af-cfc8cbdc36fe",
+        "chatSessionId": "sess_10e7ab42-face-4e07-968b-2e2982a52331",
+        "timestamp": 1795517684870
+      },
+      {
+        "executionId": "7d2a1a3c-fde8-4cf8-87af-cfc8cbdc36fe",
+        "chatSessionId": "sess_10e7ab42-face-4e07-968b-2e2982a52331",
+        "timestamp": 1795517697922
+      }
+    ],
+    "17.4 Implement full spell effects (replace Stage 1 placeholders)": [
+      {
+        "executionId": "7d2a1a3c-fde8-4cf8-87af-cfc8cbdc36fe",
+        "chatSessionId": "sess_10e7ab42-face-4e07-968b-2e2982a52331",
+        "timestamp": 1795517702039
+      },
+      {
+        "executionId": "7d2a1a3c-fde8-4cf8-87af-cfc8cbdc36fe",
+        "chatSessionId": "sess_10e7ab42-face-4e07-968b-2e2982a52331",
+        "timestamp": 1795517716314
+      }
+    ],
+    "17.5 Maintain debug overlay (toggle with D key)": [
+      {
+        "executionId": "7d2a1a3c-fde8-4cf8-87af-cfc8cbdc36fe",
+        "chatSessionId": "sess_10e7ab42-face-4e07-968b-2e2982a52331",
+        "timestamp": 1795517720367
+      },
+      {
+        "executionId": "7d2a1a3c-fde8-4cf8-87af-cfc8cbdc36fe",
+        "chatSessionId": "sess_10e7ab42-face-4e07-968b-2e2982a52331",
+        "timestamp": 1795517734566
+      }
     ]
   }
 }

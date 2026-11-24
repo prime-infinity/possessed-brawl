@@ -91,6 +91,11 @@ export interface RenderState {
     aiHealth: number;          // 0-100
     playerMana: number;        // 0-100
     aiMana: number;           // 0-100
+    playerCasting: SpellType | null;  // Current spell being cast
+    aiCasting: SpellType | null;      // Current spell being cast
+    playerShield: boolean;     // Whether player has active shield
+    aiShield: boolean;         // Whether AI has active shield
+    tauntText?: string;        // Current AI taunt text
   };
   
   /**
@@ -334,6 +339,10 @@ export class Renderer {
     
     // Draw game UI (Stage 2)
     if (this.currentState.game) {
+      // Draw wizards first (background)
+      this.drawWizards(this.currentState.game);
+      
+      // Draw UI overlay on top
       this.drawGameUI(this.currentState.game);
     }
     
@@ -618,12 +627,14 @@ export class Renderer {
    * Draw comprehensive debug information overlay
    * 
    * Task 10.6: Update debug overlay for Spell Duel
+   * Task 17.5: Add game state info (health, mana, active effects)
    * - Display off-hand state (IDLE, READY_ARMING, READY_ARMED, CAST, CANCEL)
    * - Display wand trail points count
    * - Display match scores for all 4 spell templates
    * - Display active thresholds
    * - Display current stroke metrics
    * - Display FPS counter
+   * - Display game state (health, mana, shields, etc.)
    * Requirements: 12.1, 12.2, 12.3, 12.4, 12.5, 12.6, 12.7, 12.8
    */
   private drawDebugInfo(): void {
@@ -676,6 +687,28 @@ export class Renderer {
     }
     const spellStateSection = this.createDebugSection('SPELL CASTING', spellStateContent);
     leftColumn.appendChild(spellStateSection);
+
+    // Game state section (Task 17.5)
+    if (this.currentState.game) {
+      const gameStateContent: string[] = [
+        `Timer: ${this.currentState.game.roundTimer}`,
+        `P Health: ${this.currentState.game.playerHealth.toFixed(0)} | Mana: ${this.currentState.game.playerMana.toFixed(0)}`,
+        `AI Health: ${this.currentState.game.aiHealth.toFixed(0)} | Mana: ${this.currentState.game.aiMana.toFixed(0)}`,
+        `P Shield: ${this.currentState.game.playerShield ? 'YES' : 'NO'} | AI Shield: ${this.currentState.game.aiShield ? 'YES' : 'NO'}`,
+        `P Combo: ${this.currentState.game.playerCombo}x | AI Combo: ${this.currentState.game.aiCombo}x`,
+        `P Score: ${this.currentState.game.playerScore} | AI Score: ${this.currentState.game.aiScore}`
+      ];
+      
+      if (this.currentState.game.playerCasting) {
+        gameStateContent.push(`P Casting: ${this.currentState.game.playerCasting}`);
+      }
+      if (this.currentState.game.aiCasting) {
+        gameStateContent.push(`AI Casting: ${this.currentState.game.aiCasting}`);
+      }
+      
+      const gameStateSection = this.createDebugSection('GAME STATE', gameStateContent);
+      leftColumn.appendChild(gameStateSection);
+    }
 
     // === RIGHT COLUMN ===
     const rightColumn = document.createElement('div');
@@ -1036,19 +1069,20 @@ export class Renderer {
   }
   
   /**
-   * Draw placeholder spell effects (Task 10.5)
-   * 
-   * **Validates: Requirements 11.1, 11.2, 11.3, 11.4, 11.5**
+   * Draw spell effects - delegates to enhanced spell effects for game mode
+   * or simple placeholder for practice mode
+   * **Validates: Requirements 11.1, 11.2, 11.3, 11.4, 11.5, 16.1, 16.2, 16.3, 16.4**
    */
   private drawSpellEffect(spell: RecognizedSpell): void {
-    // All spells get effects now (no FIZZLE)
+    // If in game mode with positions, use enhanced effects
+    // Otherwise use simple placeholders (for practice mode)
     
     this.ctx.save();
     
     const centerX = this.width / 2;
     const centerY = this.height / 2;
     
-    // Simple procedural effects (no sprites)
+    // Simple procedural effects (Stage 1 placeholders)
     switch (spell.type) {
       case SpellType.SHIELD:
         // Glowing circle outline around center
@@ -1342,6 +1376,474 @@ export class Renderer {
     } else {
       return '#ff0000'; // Red
     }
+  }
+
+  /**
+   * Draw stick figure wizards (Task 17.1)
+   * **Validates: Requirements 13.1, 13.2, 13.3, 13.4**
+   */
+  public drawWizards(gameState: RenderState['game']): void {
+    if (!gameState) return;
+
+    this.ctx.save();
+
+    // Player wizard on left side
+    const playerX = this.width * 0.2;
+    const playerY = this.height * 0.6;
+    this.drawStickWizard(playerX, playerY, 'player', gameState.playerCasting, gameState.playerShield);
+
+    // AI wizard on right side
+    const aiX = this.width * 0.8;
+    const aiY = this.height * 0.6;
+    this.drawStickWizard(aiX, aiY, 'ai', gameState.aiCasting, gameState.aiShield);
+
+    // Draw taunt bubble if present
+    if (gameState.tauntText) {
+      this.drawTauntBubble(aiX, aiY - 120, gameState.tauntText);
+    }
+
+    this.ctx.restore();
+  }
+
+  /**
+   * Draw a single stick figure wizard
+   * **Validates: Requirements 13.1, 13.2, 13.3, 13.4**
+   */
+  private drawStickWizard(
+    x: number,
+    y: number,
+    wizard: 'player' | 'ai',
+    casting: SpellType | null,
+    hasShield: boolean
+  ): void {
+    this.ctx.save();
+
+    // Wizard color
+    const color = wizard === 'player' ? '#00ff41' : '#ff4136';
+    this.ctx.strokeStyle = color;
+    this.ctx.fillStyle = color;
+    this.ctx.lineWidth = 4;
+    this.ctx.lineCap = 'round';
+
+    // Head
+    this.ctx.beginPath();
+    this.ctx.arc(x, y - 80, 20, 0, 2 * Math.PI);
+    this.ctx.stroke();
+
+    // Torso
+    this.ctx.beginPath();
+    this.ctx.moveTo(x, y - 60);
+    this.ctx.lineTo(x, y);
+    this.ctx.stroke();
+
+    // Determine arm positions based on casting state
+    const shoulderY = y - 50;
+    
+    // If casting, raise the wand hand (right for player, left for AI)
+    if (casting !== null) {
+      if (wizard === 'player') {
+        // Player: left arm down, right arm raised (casting)
+        // Left arm
+        this.ctx.beginPath();
+        this.ctx.moveTo(x, shoulderY);
+        this.ctx.lineTo(x - 30, shoulderY + 20);
+        this.ctx.lineTo(x - 40, shoulderY + 40);
+        this.ctx.stroke();
+
+        // Right arm raised (casting)
+        this.ctx.beginPath();
+        this.ctx.moveTo(x, shoulderY);
+        this.ctx.lineTo(x + 20, shoulderY - 30);
+        this.ctx.lineTo(x + 30, shoulderY - 50);
+        this.ctx.stroke();
+
+        // Draw wand glow at right hand
+        this.drawWandGlow(x + 30, shoulderY - 50, casting);
+      } else {
+        // AI: right arm down, left arm raised (casting)
+        // Right arm
+        this.ctx.beginPath();
+        this.ctx.moveTo(x, shoulderY);
+        this.ctx.lineTo(x + 30, shoulderY + 20);
+        this.ctx.lineTo(x + 40, shoulderY + 40);
+        this.ctx.stroke();
+
+        // Left arm raised (casting)
+        this.ctx.beginPath();
+        this.ctx.moveTo(x, shoulderY);
+        this.ctx.lineTo(x - 20, shoulderY - 30);
+        this.ctx.lineTo(x - 30, shoulderY - 50);
+        this.ctx.stroke();
+
+        // Draw wand glow at left hand
+        this.drawWandGlow(x - 30, shoulderY - 50, casting);
+      }
+    } else {
+      // Arms at rest
+      // Left arm
+      this.ctx.beginPath();
+      this.ctx.moveTo(x, shoulderY);
+      this.ctx.lineTo(x - 30, shoulderY + 20);
+      this.ctx.lineTo(x - 40, shoulderY + 40);
+      this.ctx.stroke();
+
+      // Right arm
+      this.ctx.beginPath();
+      this.ctx.moveTo(x, shoulderY);
+      this.ctx.lineTo(x + 30, shoulderY + 20);
+      this.ctx.lineTo(x + 40, shoulderY + 40);
+      this.ctx.stroke();
+    }
+
+    // Draw shield effect if active
+    if (hasShield) {
+      this.ctx.strokeStyle = 'rgba(100, 149, 237, 0.7)';
+      this.ctx.lineWidth = 3;
+      this.ctx.shadowBlur = 15;
+      this.ctx.shadowColor = 'rgba(100, 149, 237, 0.9)';
+      this.ctx.beginPath();
+      this.ctx.arc(x, y - 40, 60, 0, 2 * Math.PI);
+      this.ctx.stroke();
+      this.ctx.shadowBlur = 0;
+    }
+
+    this.ctx.restore();
+  }
+
+  /**
+   * Draw wand glow at hand position
+   */
+  private drawWandGlow(x: number, y: number, spellType: SpellType): void {
+    this.ctx.save();
+
+    // Color based on spell type
+    let glowColor: string;
+    switch (spellType) {
+      case SpellType.SHIELD:
+        glowColor = 'rgba(100, 149, 237, 0.8)';
+        break;
+      case SpellType.LIGHTNING:
+        glowColor = 'rgba(255, 255, 0, 0.8)';
+        break;
+      case SpellType.FIREBALL:
+        glowColor = 'rgba(255, 100, 50, 0.8)';
+        break;
+      case SpellType.FROST:
+        glowColor = 'rgba(100, 200, 255, 0.8)';
+        break;
+    }
+
+    this.ctx.shadowBlur = 20;
+    this.ctx.shadowColor = glowColor;
+    this.ctx.fillStyle = glowColor;
+    this.ctx.beginPath();
+    this.ctx.arc(x, y, 15, 0, 2 * Math.PI);
+    this.ctx.fill();
+
+    this.ctx.restore();
+  }
+
+  /**
+   * Draw taunt bubble above AI wizard (Task 17.3)
+   * **Validates: Requirement 19.4**
+   */
+  private drawTauntBubble(x: number, y: number, text: string): void {
+    this.ctx.save();
+
+    this.ctx.font = '14px monospace';
+    const textMetrics = this.ctx.measureText(text);
+    const bubbleWidth = textMetrics.width + 20;
+    const bubbleHeight = 30;
+
+    // Speech bubble background
+    this.ctx.fillStyle = 'rgba(0, 0, 0, 0.8)';
+    this.ctx.strokeStyle = '#ffffff';
+    this.ctx.lineWidth = 2;
+
+    // Bubble
+    this.ctx.beginPath();
+    this.ctx.roundRect(x - bubbleWidth / 2, y, bubbleWidth, bubbleHeight, 5);
+    this.ctx.fill();
+    this.ctx.stroke();
+
+    // Pointer triangle
+    this.ctx.beginPath();
+    this.ctx.moveTo(x - 10, y + bubbleHeight);
+    this.ctx.lineTo(x, y + bubbleHeight + 10);
+    this.ctx.lineTo(x + 10, y + bubbleHeight);
+    this.ctx.closePath();
+    this.ctx.fill();
+    this.ctx.stroke();
+
+    // Text
+    this.ctx.fillStyle = '#ffffff';
+    this.ctx.textAlign = 'center';
+    this.ctx.textBaseline = 'middle';
+    this.ctx.fillText(text, x, y + bubbleHeight / 2);
+
+    this.ctx.restore();
+  }
+
+  /**
+   * Draw enhanced spell effects (Task 17.4)
+   * Replaces placeholder Stage 1 effects with full animations
+   * **Validates: Requirements 16.1, 16.2, 16.3, 16.4**
+   */
+  public drawEnhancedSpellEffect(
+    spellType: SpellType,
+    sourceX: number,
+    sourceY: number,
+    targetX: number,
+    targetY: number,
+    progress: number
+  ): void {
+    this.ctx.save();
+
+    switch (spellType) {
+      case SpellType.SHIELD:
+        this.drawShieldEffect(sourceX, sourceY, progress);
+        break;
+      case SpellType.LIGHTNING:
+        this.drawLightningEffect(sourceX, sourceY, targetX, targetY, progress);
+        break;
+      case SpellType.FIREBALL:
+        this.drawFireballEffect(sourceX, sourceY, targetX, targetY, progress);
+        break;
+      case SpellType.FROST:
+        this.drawFrostEffect(sourceX, sourceY, targetX, targetY, progress);
+        break;
+    }
+
+    this.ctx.restore();
+  }
+
+  /**
+   * Draw shield spell effect with particles
+   * **Validates: Requirement 16.1**
+   */
+  private drawShieldEffect(x: number, y: number, progress: number): void {
+    // Growing shield with particles
+    const radius = 60 * progress;
+    const alpha = Math.max(0, 1 - progress * 0.5);
+
+    // Outer glow
+    this.ctx.strokeStyle = `rgba(100, 149, 237, ${alpha * 0.6})`;
+    this.ctx.lineWidth = 5;
+    this.ctx.shadowBlur = 25;
+    this.ctx.shadowColor = `rgba(100, 149, 237, ${alpha})`;
+    this.ctx.beginPath();
+    this.ctx.arc(x, y, radius, 0, 2 * Math.PI);
+    this.ctx.stroke();
+
+    // Inner bright circle
+    this.ctx.strokeStyle = `rgba(135, 206, 250, ${alpha * 0.8})`;
+    this.ctx.lineWidth = 3;
+    this.ctx.beginPath();
+    this.ctx.arc(x, y, radius * 0.7, 0, 2 * Math.PI);
+    this.ctx.stroke();
+
+    // Particles
+    const particleCount = 12;
+    for (let i = 0; i < particleCount; i++) {
+      const angle = (i / particleCount) * Math.PI * 2 + progress * Math.PI;
+      const particleX = x + Math.cos(angle) * radius;
+      const particleY = y + Math.sin(angle) * radius;
+
+      this.ctx.fillStyle = `rgba(135, 206, 250, ${alpha})`;
+      this.ctx.beginPath();
+      this.ctx.arc(particleX, particleY, 3, 0, 2 * Math.PI);
+      this.ctx.fill();
+    }
+
+    this.ctx.shadowBlur = 0;
+  }
+
+  /**
+   * Draw lightning spell effect with flash
+   * **Validates: Requirement 16.2**
+   */
+  private drawLightningEffect(
+    x1: number,
+    y1: number,
+    x2: number,
+    y2: number,
+    progress: number
+  ): void {
+    if (progress > 1) progress = 1;
+
+    // Flash effect at start
+    if (progress < 0.3) {
+      const flashAlpha = (0.3 - progress) / 0.3;
+      this.ctx.fillStyle = `rgba(255, 255, 255, ${flashAlpha * 0.3})`;
+      this.ctx.fillRect(0, 0, this.width, this.height);
+    }
+
+    // Animated lightning bolt
+    const alpha = progress < 0.5 ? 1 : (1 - (progress - 0.5) * 2);
+    
+    this.ctx.strokeStyle = `rgba(255, 255, 100, ${alpha})`;
+    this.ctx.lineWidth = 6;
+    this.ctx.shadowBlur = 20;
+    this.ctx.shadowColor = `rgba(255, 255, 100, ${alpha})`;
+    this.ctx.lineCap = 'round';
+
+    // Create jagged lightning path
+    const segments = 8;
+    const dx = (x2 - x1) / segments;
+    const dy = (y2 - y1) / segments;
+
+    this.ctx.beginPath();
+    this.ctx.moveTo(x1, y1);
+
+    for (let i = 1; i < segments; i++) {
+      const jitterX = (Math.random() - 0.5) * 40;
+      const jitterY = (Math.random() - 0.5) * 40;
+      this.ctx.lineTo(x1 + dx * i + jitterX, y1 + dy * i + jitterY);
+    }
+
+    this.ctx.lineTo(x2, y2);
+    this.ctx.stroke();
+
+    // Secondary thinner bolt
+    this.ctx.lineWidth = 2;
+    this.ctx.strokeStyle = `rgba(255, 255, 255, ${alpha})`;
+    this.ctx.stroke();
+
+    this.ctx.shadowBlur = 0;
+  }
+
+  /**
+   * Draw fireball spell effect with trail and impact
+   * **Validates: Requirement 16.3**
+   */
+  private drawFireballEffect(
+    x1: number,
+    y1: number,
+    x2: number,
+    y2: number,
+    progress: number
+  ): void {
+    if (progress > 1) progress = 1;
+
+    // Projectile position
+    const currentX = x1 + (x2 - x1) * progress;
+    const currentY = y1 + (y2 - y1) * progress;
+
+    // Trail effect
+    const trailLength = 5;
+    for (let i = 0; i < trailLength; i++) {
+      const trailProgress = progress - (i * 0.05);
+      if (trailProgress < 0) continue;
+
+      const trailX = x1 + (x2 - x1) * trailProgress;
+      const trailY = y1 + (y2 - y1) * trailProgress;
+      const trailAlpha = (1 - i / trailLength) * 0.6;
+
+      const gradient = this.ctx.createRadialGradient(
+        trailX, trailY, 0,
+        trailX, trailY, 30 - i * 5
+      );
+      gradient.addColorStop(0, `rgba(255, 140, 0, ${trailAlpha})`);
+      gradient.addColorStop(0.5, `rgba(255, 69, 0, ${trailAlpha * 0.5})`);
+      gradient.addColorStop(1, `rgba(255, 0, 0, 0)`);
+
+      this.ctx.fillStyle = gradient;
+      this.ctx.beginPath();
+      this.ctx.arc(trailX, trailY, 30 - i * 5, 0, 2 * Math.PI);
+      this.ctx.fill();
+    }
+
+    // Main fireball
+    const gradient = this.ctx.createRadialGradient(
+      currentX, currentY, 0,
+      currentX, currentY, 40
+    );
+    gradient.addColorStop(0, 'rgba(255, 255, 200, 0.9)');
+    gradient.addColorStop(0.3, 'rgba(255, 140, 0, 0.9)');
+    gradient.addColorStop(0.6, 'rgba(255, 69, 0, 0.7)');
+    gradient.addColorStop(1, 'rgba(255, 0, 0, 0.2)');
+
+    this.ctx.fillStyle = gradient;
+    this.ctx.shadowBlur = 30;
+    this.ctx.shadowColor = 'rgba(255, 69, 0, 0.8)';
+    this.ctx.beginPath();
+    this.ctx.arc(currentX, currentY, 40, 0, 2 * Math.PI);
+    this.ctx.fill();
+
+    // Impact effect at target
+    if (progress > 0.9) {
+      const impactProgress = (progress - 0.9) / 0.1;
+      const impactRadius = 60 * impactProgress;
+      const impactAlpha = 1 - impactProgress;
+
+      this.ctx.strokeStyle = `rgba(255, 100, 0, ${impactAlpha})`;
+      this.ctx.lineWidth = 4;
+      this.ctx.beginPath();
+      this.ctx.arc(x2, y2, impactRadius, 0, 2 * Math.PI);
+      this.ctx.stroke();
+    }
+
+    this.ctx.shadowBlur = 0;
+  }
+
+  /**
+   * Draw frost spell effect with expanding ice particles
+   * **Validates: Requirement 16.4**
+   */
+  private drawFrostEffect(
+    x1: number,
+    y1: number,
+    x2: number,
+    y2: number,
+    progress: number
+  ): void {
+    if (progress > 1) progress = 1;
+
+    const centerX = (x1 + x2) / 2;
+    const centerY = (y1 + y2) / 2;
+    const maxRadius = Math.abs(x2 - x1) / 2;
+
+    // Expanding frost waves
+    const waveCount = 3;
+    for (let i = 0; i < waveCount; i++) {
+      const waveProgress = Math.max(0, progress - i * 0.15);
+      const radius = maxRadius * waveProgress;
+      const alpha = Math.max(0, 1 - waveProgress);
+
+      this.ctx.strokeStyle = `rgba(0, 191, 255, ${alpha * 0.6})`;
+      this.ctx.lineWidth = 4;
+      this.ctx.shadowBlur = 20;
+      this.ctx.shadowColor = `rgba(0, 191, 255, ${alpha})`;
+      this.ctx.beginPath();
+      this.ctx.arc(centerX, centerY, radius, 0, 2 * Math.PI);
+      this.ctx.stroke();
+    }
+
+    // Ice particles
+    const particleCount = 20;
+    for (let i = 0; i < particleCount; i++) {
+      const angle = (i / particleCount) * Math.PI * 2;
+      const distance = maxRadius * progress;
+      const particleX = centerX + Math.cos(angle) * distance;
+      const particleY = centerY + Math.sin(angle) * distance;
+      const particleAlpha = Math.max(0, 1 - progress);
+
+      // Ice crystal shape
+      this.ctx.fillStyle = `rgba(135, 206, 250, ${particleAlpha})`;
+      this.ctx.save();
+      this.ctx.translate(particleX, particleY);
+      this.ctx.rotate(angle);
+      this.ctx.beginPath();
+      this.ctx.moveTo(0, -6);
+      this.ctx.lineTo(2, 0);
+      this.ctx.lineTo(0, 6);
+      this.ctx.lineTo(-2, 0);
+      this.ctx.closePath();
+      this.ctx.fill();
+      this.ctx.restore();
+    }
+
+    this.ctx.shadowBlur = 0;
   }
   
   /**
