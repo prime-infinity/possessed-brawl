@@ -238,25 +238,25 @@ The implementation uses **TypeScript** for type safety, **MediaPipe Pose** for b
 
 #### AI Wizard
 
-- [ ] 15. Implement AI_Wizard controller
-  - [ ] 15.1 Create AI configuration interface and initialization
+- [x] 15. Implement AI_Wizard controller
+  - [x] 15.1 Create AI configuration interface and initialization
     - Define base cast interval, variation, counter bias, adaptive window
     - Define difficulty multiplier range (min/max)
     - _Requirements: 17.1_
 
-  - [ ] 15.2 Implement randomized timer-based spell selection
+  - [x] 15.2 Implement randomized timer-based spell selection
     - Initialize cast timer with random offset
     - Update timer each frame (deltaTime)
     - When timer reaches zero, select spell and reset timer with new random value
     - _Requirements: 17.1_
 
-  - [ ] 15.3 Implement weighted spell selection
+  - [x] 15.3 Implement weighted spell selection
     - Default weights: 0.25 for each spell
     - If player is casting, bias toward counter spell (add counter bias to weight)
     - Normalize weights and pick using weighted random
     - _Requirements: 17.2, 17.3_
 
-  - [ ] 15.4 Implement adaptive difficulty system
+  - [x] 15.4 Implement adaptive difficulty system
     - Track player cast success over rolling window (e.g., last 10 casts)
     - Calculate success rate
     - If rate > 0.7: increase AI speed (1.0x to 1.5x)
@@ -264,7 +264,7 @@ The implementation uses **TypeScript** for type safety, **MediaPipe Pose** for b
     - Adjust cast interval accordingly
     - _Requirements: 17.4, 17.5, 17.6_
 
-  - [ ] 15.5 Implement taunt system
+  - [x] 15.5 Implement taunt system
     - Display taunt text bubbles on events:
       - Difficulty increase: "You're getting better!"
       - Player combo > 5: "Nice combo!"
