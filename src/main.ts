@@ -23,6 +23,7 @@ export enum AppState {
   NOT_STARTED = 'not_started',
   INITIALIZING = 'initializing',
   CALIBRATING = 'calibrating',
+  PRACTICING = 'practicing',
   ACTIVE = 'active',
   ERROR = 'error',
   PAUSED = 'paused'
@@ -72,6 +73,15 @@ export class Application {
   private currentTrail: { x: number; y: number }[] = [];
   private spellOverlay: HTMLDivElement | null = null;
   
+  // Practice mode
+  private isPracticeMode: boolean = false;
+  private practiceSpells: SpellType[] = [SpellType.SHIELD, SpellType.FIREBALL, SpellType.FROST, SpellType.LIGHTNING];
+  private currentPracticeIndex: number = 0;
+  private practiceOverlay: HTMLDivElement | null = null;
+  private practicePhase: 'demonstration' | 'practice' = 'demonstration';
+  private demonstrationAnimationId: number | null = null;
+  private readonly PRACTICE_STORAGE_KEY = 'spell_duel_practice_completed';
+  
   // Simulated stamina for Stage 1 testing (will be replaced in Stage 2)
   private simulatedStamina: number = 100;
   
@@ -93,6 +103,7 @@ export class Application {
   // DOM elements
   private canvas: HTMLCanvasElement;
   private startBtn: HTMLButtonElement;
+  private practiceBtn: HTMLButtonElement;
   private loadingScreen: HTMLDivElement;
   private performanceWarning: HTMLDivElement | null = null;
 
@@ -103,9 +114,10 @@ export class Application {
     // Get DOM elements
     this.canvas = document.getElementById('canvas') as HTMLCanvasElement;
     this.startBtn = document.getElementById('start-btn') as HTMLButtonElement;
+    this.practiceBtn = document.getElementById('practice-btn') as HTMLButtonElement;
     this.loadingScreen = document.getElementById('loading-screen') as HTMLDivElement;
     
-    if (!this.canvas || !this.startBtn || !this.loadingScreen) {
+    if (!this.canvas || !this.startBtn || !this.practiceBtn || !this.loadingScreen) {
       throw new Error('Required DOM elements not found');
     }
     
@@ -192,11 +204,43 @@ export class Application {
   private setupEventHandlers(): void {
     // Start button click handler
     this.startBtn.addEventListener('click', () => {
-      this.start().catch(error => {
-        console.error('Failed to start application:', error);
+      // Check if first time user
+      const hasCompletedPractice = localStorage.getItem(this.PRACTICE_STORAGE_KEY);
+      
+      if (!hasCompletedPractice) {
+        // First time - force practice
+        this.startPractice().catch(error => {
+          console.error('Failed to start practice:', error);
+          this.handleError(error);
+        });
+      } else {
+        // Returning user - start game directly
+        this.start().catch(error => {
+          console.error('Failed to start application:', error);
+          this.handleError(error);
+        });
+      }
+    });
+    
+    // Practice button click handler (only for returning users)
+    this.practiceBtn.addEventListener('click', () => {
+      this.startPractice().catch(error => {
+        console.error('Failed to start practice:', error);
         this.handleError(error);
       });
     });
+    
+    // Show/hide practice button based on completion status
+    const hasCompletedPractice = localStorage.getItem(this.PRACTICE_STORAGE_KEY);
+    if (!hasCompletedPractice) {
+      // First time - change button text and hide practice button
+      this.startBtn.textContent = 'Practice Spells';
+      this.practiceBtn.style.display = 'none';
+    } else {
+      // Returning user - show both buttons
+      this.startBtn.textContent = 'Start Game';
+      this.practiceBtn.style.display = 'block';
+    }
     
     // Calibration retry handler (R key)
     document.addEventListener('keydown', (e) => {
@@ -227,6 +271,60 @@ export class Application {
           retryBtn.style.display = 'none';
         }
       });
+    }
+  }
+
+  /**
+   * Start practice mode
+   */
+  async startPractice(): Promise<void> {
+    if (this.state !== AppState.NOT_STARTED && this.state !== AppState.ERROR) {
+      console.warn('Application already started');
+      return;
+    }
+    
+    try {
+      this.state = AppState.INITIALIZING;
+      this.isPracticeMode = true;
+      this.currentPracticeIndex = 0;
+      console.log('Starting practice mode...');
+      
+      // Hide loading screen
+      this.loadingScreen.classList.remove('active');
+      
+      // Initialize PoseDetector (requests webcam permission)
+      console.log('Initializing pose detector...');
+      await this.poseDetector.initialize();
+      console.log('Pose detector initialized successfully');
+      
+      // Show canvas for rendering
+      this.canvas.classList.add('active');
+      this.showVideoPreview();
+      
+      // Show initial instructions
+      this.showInitialInstructions();
+      
+      // Initialize gesture recognizer
+      this.gestureRecognizer = new GestureRecognizer();
+      
+      // Go to practicing state
+      this.state = AppState.PRACTICING;
+      this.calibrationCompleted = true;
+      
+      // Show first spell practice
+      setTimeout(() => {
+        this.showPracticeSpell();
+      }, 100);
+      
+      // Start main loop
+      this.isRunning = true;
+      this.lastFrameTime = performance.now();
+      this.mainLoop();
+      
+    } catch (error) {
+      console.error('Failed to start practice:', error);
+      this.handleError(error);
+      throw error;
     }
   }
 
@@ -414,6 +512,500 @@ export class Application {
     if (overlay) {
       overlay.remove();
     }
+  }
+
+  /**
+   * Show practice spell instruction
+   */
+  private showPracticeSpell(): void {
+    if (this.currentPracticeIndex >= this.practiceSpells.length) {
+      // All spells practiced - show completion
+      this.showPracticeCompletion();
+      return;
+    }
+    
+    this.practicePhase = 'demonstration';
+    const spell = this.practiceSpells[this.currentPracticeIndex];
+    
+    // Remove previous overlay if exists
+    if (this.practiceOverlay) {
+      this.practiceOverlay.remove();
+    }
+    
+    this.practiceOverlay = document.createElement('div');
+    this.practiceOverlay.id = 'practice-overlay';
+    this.practiceOverlay.style.cssText = `
+      position: fixed;
+      top: 50%;
+      left: 50%;
+      transform: translate(-50%, -50%);
+      background: rgba(0, 0, 0, 0.95);
+      color: white;
+      padding: clamp(20px, 4vw, 40px);
+      border-radius: 15px;
+      font-family: Arial, sans-serif;
+      text-align: center;
+      z-index: 10001;
+      border: 3px solid #00bfff;
+      max-width: 90%;
+      max-height: 90vh;
+      overflow: auto;
+    `;
+    
+    const spellName = spell.toUpperCase();
+    const emoji = this.getSpellEmoji(spell);
+    
+    this.practiceOverlay.innerHTML = `
+      <h2 style="font-size: clamp(20px, 5vw, 28px); margin-bottom: clamp(10px, 2vh, 15px); color: #00bfff;">Learn: ${spellName}</h2>
+      <div style="font-size: clamp(32px, 8vw, 48px); margin-bottom: clamp(10px, 2vh, 15px);">${emoji}</div>
+      <p style="font-size: clamp(14px, 3.5vw, 18px); color: #ccc; margin-bottom: clamp(15px, 3vh, 25px);">Watch how to cast this spell:</p>
+      <canvas id="practice-demo-canvas" width="400" height="300" style="margin: 0 auto; display: block; max-width: 100%; background: rgba(255,255,255,0.05); border-radius: 10px;"></canvas>
+      <p style="font-size: clamp(12px, 2.5vw, 14px); color: #888; margin-top: clamp(10px, 2vh, 15px);">Progress: ${this.currentPracticeIndex + 1} / ${this.practiceSpells.length}</p>
+    `;
+    
+    document.body.appendChild(this.practiceOverlay);
+    
+    // Start animation
+    const canvas = this.practiceOverlay.querySelector('#practice-demo-canvas') as HTMLCanvasElement;
+    if (canvas) {
+      this.startDemonstrationAnimation(canvas, spell);
+    }
+  }
+
+  /**
+   * Start animated demonstration
+   */
+  private startDemonstrationAnimation(canvas: HTMLCanvasElement, spell: SpellType): void {
+    const ctx = canvas.getContext('2d');
+    if (!ctx) return;
+    
+    let frame = 0;
+    const totalFrames = 180; // 3 seconds at 60fps
+    
+    const animate = () => {
+      ctx.clearRect(0, 0, canvas.width, canvas.height);
+      
+      const centerX = canvas.width / 2;
+      const centerY = canvas.height / 2;
+      const scale = 50;
+      
+      // Draw stick figure
+      ctx.strokeStyle = '#00bfff';
+      ctx.fillStyle = '#00bfff';
+      ctx.lineWidth = 4;
+      ctx.lineCap = 'round';
+      ctx.lineJoin = 'round';
+      
+      // Head
+      ctx.beginPath();
+      ctx.arc(centerX - 100, centerY - scale * 1.2, scale * 0.25, 0, Math.PI * 2);
+      ctx.stroke();
+      
+      // Torso
+      const shoulderY = centerY - scale * 0.9;
+      ctx.beginPath();
+      ctx.moveTo(centerX - 100, shoulderY);
+      ctx.lineTo(centerX - 100, centerY + scale * 0.3);
+      ctx.stroke();
+      
+      // Shoulders
+      ctx.beginPath();
+      ctx.moveTo(centerX - 100 - scale * 0.6, shoulderY);
+      ctx.lineTo(centerX - 100 + scale * 0.6, shoulderY);
+      ctx.stroke();
+      
+      // LEFT ARM - RAISED (OFF-HAND)
+      const leftWristY = shoulderY - scale * 0.6;
+      ctx.strokeStyle = '#00bfff';
+      ctx.lineWidth = 4;
+      ctx.beginPath();
+      ctx.moveTo(centerX - 100 - scale * 0.6, shoulderY);
+      ctx.lineTo(centerX - 100 - scale * 0.7, shoulderY - scale * 0.3);
+      ctx.lineTo(centerX - 100 - scale * 0.75, leftWristY);
+      ctx.stroke();
+      
+      // Left hand glow
+      ctx.fillStyle = 'rgba(0, 191, 255, 0.6)';
+      ctx.beginPath();
+      ctx.arc(centerX - 100 - scale * 0.75, leftWristY, 10, 0, Math.PI * 2);
+      ctx.fill();
+      
+      // RIGHT ARM - DRAWING (animate)
+      ctx.strokeStyle = '#ffd700';
+      ctx.lineWidth = 4;
+      const progress = frame / totalFrames;
+      
+      // Draw trail for wand hand
+      ctx.strokeStyle = 'rgba(255, 215, 0, 0.8)';
+      ctx.lineWidth = 3;
+      this.drawAnimatedGestureTrail(ctx, spell, progress, centerX + 50, centerY);
+      
+      // Draw wand hand position
+      const wandPos = this.getWandPositionForProgress(spell, progress, centerX + 50, centerY, 60);
+      
+      ctx.strokeStyle = '#ffd700';
+      ctx.lineWidth = 4;
+      ctx.beginPath();
+      ctx.moveTo(centerX - 100 + scale * 0.6, shoulderY);
+      ctx.lineTo(centerX - 100 + scale * 0.8, shoulderY - scale * 0.1);
+      ctx.lineTo(wandPos.x, wandPos.y);
+      ctx.stroke();
+      
+      // Wand hand glow
+      ctx.fillStyle = 'rgba(255, 215, 0, 0.8)';
+      ctx.beginPath();
+      ctx.arc(wandPos.x, wandPos.y, 10, 0, Math.PI * 2);
+      ctx.fill();
+      
+      // Add instruction text
+      ctx.fillStyle = '#fff';
+      ctx.font = 'bold 16px Arial';
+      ctx.textAlign = 'center';
+      ctx.fillText('1. Raise left hand', centerX, 30);
+      ctx.fillText('2. Draw with right hand', centerX, 50);
+      ctx.fillText('3. Lower left hand to cast', centerX, 70);
+      
+      frame++;
+      
+      if (frame < totalFrames) {
+        this.demonstrationAnimationId = requestAnimationFrame(animate);
+      } else {
+        // Animation complete - move to practice phase
+        setTimeout(() => {
+          this.transitionToPractice(spell);
+        }, 1000);
+      }
+    };
+    
+    animate();
+  }
+
+  /**
+   * Draw animated gesture trail
+   */
+  private drawAnimatedGestureTrail(ctx: CanvasRenderingContext2D, spell: SpellType, progress: number, centerX: number, centerY: number): void {
+    const size = 60;
+    
+    ctx.beginPath();
+    
+    switch (spell) {
+      case SpellType.SHIELD:
+        // Circle
+        const angle = progress * Math.PI * 2;
+        ctx.arc(centerX, centerY, size, 0, angle);
+        break;
+        
+      case SpellType.FIREBALL:
+        // Horizontal line
+        const hEnd = centerX - size + (progress * size * 2);
+        ctx.moveTo(centerX - size, centerY);
+        ctx.lineTo(hEnd, centerY);
+        break;
+        
+      case SpellType.FROST:
+        // Vertical line
+        const vEnd = centerY - size + (progress * size * 2);
+        ctx.moveTo(centerX, centerY - size);
+        ctx.lineTo(centerX, vEnd);
+        break;
+        
+      case SpellType.LIGHTNING:
+        // Diagonal line
+        const dEnd = progress;
+        ctx.moveTo(centerX - size * 0.7, centerY - size * 0.7);
+        ctx.lineTo(
+          centerX - size * 0.7 + (dEnd * size * 1.4),
+          centerY - size * 0.7 + (dEnd * size * 1.4)
+        );
+        break;
+    }
+    
+    ctx.stroke();
+  }
+
+  /**
+   * Get wand position based on spell progress
+   */
+  private getWandPositionForProgress(spell: SpellType, progress: number, centerX: number, centerY: number, size: number): { x: number; y: number } {
+    switch (spell) {
+      case SpellType.SHIELD:
+        // Circle
+        const angle = progress * Math.PI * 2;
+        return {
+          x: centerX + Math.cos(angle - Math.PI / 2) * size,
+          y: centerY + Math.sin(angle - Math.PI / 2) * size
+        };
+        
+      case SpellType.FIREBALL:
+        // Horizontal line
+        return {
+          x: centerX - size + (progress * size * 2),
+          y: centerY
+        };
+        
+      case SpellType.FROST:
+        // Vertical line
+        return {
+          x: centerX,
+          y: centerY - size + (progress * size * 2)
+        };
+        
+      case SpellType.LIGHTNING:
+        // Diagonal line
+        return {
+          x: centerX - size * 0.7 + (progress * size * 1.4),
+          y: centerY - size * 0.7 + (progress * size * 1.4)
+        };
+        
+      default:
+        return { x: centerX, y: centerY };
+    }
+  }
+
+  /**
+   * Transition from demonstration to practice
+   */
+  private transitionToPractice(spell: SpellType): void {
+    this.practicePhase = 'practice';
+    
+    if (this.demonstrationAnimationId) {
+      cancelAnimationFrame(this.demonstrationAnimationId);
+      this.demonstrationAnimationId = null;
+    }
+    
+    if (this.practiceOverlay) {
+      this.practiceOverlay.remove();
+    }
+    
+    // Create smaller reference animation in corner
+    this.createReferenceAnimation(spell);
+    
+    // Show instruction text overlay
+    this.showPracticeInstructions(spell);
+  }
+
+  /**
+   * Create small reference animation in bottom-right
+   */
+  private createReferenceAnimation(spell: SpellType): void {
+    const refContainer = document.createElement('div');
+    refContainer.id = 'reference-animation';
+    refContainer.style.cssText = `
+      position: fixed;
+      bottom: 100px;
+      right: 20px;
+      background: rgba(0, 0, 0, 0.9);
+      border: 2px solid #00bfff;
+      border-radius: 10px;
+      padding: 10px;
+      z-index: 9999;
+    `;
+    
+    refContainer.innerHTML = `
+      <p style="color: #00bfff; font-size: 12px; margin-bottom: 5px; text-align: center; font-family: Arial;">Reference</p>
+      <canvas id="reference-canvas" width="150" height="120"></canvas>
+    `;
+    
+    document.body.appendChild(refContainer);
+    
+    // Start looping animation
+    const canvas = refContainer.querySelector('#reference-canvas') as HTMLCanvasElement;
+    if (canvas) {
+      this.loopReferenceAnimation(canvas, spell);
+    }
+  }
+
+  /**
+   * Loop reference animation
+   */
+  private loopReferenceAnimation(canvas: HTMLCanvasElement, spell: SpellType): void {
+    const ctx = canvas.getContext('2d');
+    if (!ctx) return;
+    
+    let frame = 0;
+    const totalFrames = 120;
+    
+    const animate = () => {
+      if (this.practicePhase !== 'practice' || this.state !== AppState.PRACTICING) {
+        return; // Stop animation
+      }
+      
+      ctx.clearRect(0, 0, canvas.width, canvas.height);
+      
+      const centerX = 50;
+      const centerY = canvas.height / 2;
+      const scale = 25;
+      const progress = (frame % totalFrames) / totalFrames;
+      
+      // Mini stick figure
+      ctx.strokeStyle = '#00bfff';
+      ctx.lineWidth = 2;
+      ctx.lineCap = 'round';
+      
+      // Head
+      ctx.beginPath();
+      ctx.arc(centerX, centerY - scale * 1.2, scale * 0.2, 0, Math.PI * 2);
+      ctx.stroke();
+      
+      // Body and arms (simplified)
+      ctx.beginPath();
+      ctx.moveTo(centerX, centerY - scale * 0.9);
+      ctx.lineTo(centerX, centerY + scale * 0.3);
+      ctx.stroke();
+      
+      // Left arm raised
+      ctx.beginPath();
+      ctx.moveTo(centerX, centerY - scale * 0.9);
+      ctx.lineTo(centerX - scale * 0.5, centerY - scale * 1.3);
+      ctx.stroke();
+      
+      // Draw gesture trail
+      ctx.strokeStyle = 'rgba(255, 215, 0, 0.8)';
+      ctx.lineWidth = 2;
+      this.drawAnimatedGestureTrail(ctx, spell, progress, centerX + 50, centerY);
+      
+      // Wand hand
+      const wandPos = this.getWandPositionForProgress(spell, progress, centerX + 50, centerY, 30);
+      ctx.strokeStyle = '#ffd700';
+      ctx.beginPath();
+      ctx.moveTo(centerX, centerY - scale * 0.9);
+      ctx.lineTo(wandPos.x, wandPos.y);
+      ctx.stroke();
+      
+      frame++;
+      this.demonstrationAnimationId = requestAnimationFrame(animate);
+    };
+    
+    animate();
+  }
+
+  /**
+   * Show practice instructions
+   */
+  private showPracticeInstructions(spell: SpellType): void {
+    const overlay = document.createElement('div');
+    overlay.id = 'practice-instruction-overlay';
+    overlay.style.cssText = `
+      position: fixed;
+      top: 20px;
+      left: 50%;
+      transform: translateX(-50%);
+      background: rgba(0, 0, 0, 0.9);
+      color: white;
+      padding: 20px 30px;
+      border-radius: 10px;
+      font-family: Arial, sans-serif;
+      text-align: center;
+      z-index: 9998;
+      border: 2px solid #00ff41;
+    `;
+    
+    const spellName = spell.toUpperCase();
+    const emoji = this.getSpellEmoji(spell);
+    
+    overlay.innerHTML = `
+      <h3 style="font-size: clamp(18px, 4vw, 24px); margin-bottom: 10px; color: #00ff41;">Now You Try: ${emoji} ${spellName}</h3>
+      <p style="font-size: clamp(14px, 3vw, 16px); color: #ccc;">Raise left hand → Draw gesture → Lower left hand</p>
+    `;
+    
+    document.body.appendChild(overlay);
+  }
+
+  /**
+   * Get emoji for each spell
+   */
+  private getSpellEmoji(spell: SpellType): string {
+    switch (spell) {
+      case SpellType.SHIELD:
+        return '🛡️';
+      case SpellType.FIREBALL:
+        return '🔥';
+      case SpellType.FROST:
+        return '❄️';
+      case SpellType.LIGHTNING:
+        return '⚡';
+      default:
+        return '';
+    }
+  }
+
+  /**
+   * Show practice completion screen
+   */
+  private showPracticeCompletion(): void {
+    if (this.practiceOverlay) {
+      this.practiceOverlay.remove();
+    }
+    
+    this.practiceOverlay = document.createElement('div');
+    this.practiceOverlay.id = 'practice-completion';
+    this.practiceOverlay.style.cssText = `
+      position: fixed;
+      top: 50%;
+      left: 50%;
+      transform: translate(-50%, -50%);
+      background: rgba(0, 0, 0, 0.95);
+      color: white;
+      padding: clamp(30px, 5vw, 50px);
+      border-radius: 15px;
+      font-family: Arial, sans-serif;
+      text-align: center;
+      z-index: 10001;
+      border: 3px solid #00ff41;
+      max-width: 90%;
+    `;
+    
+    this.practiceOverlay.innerHTML = `
+      <h2 style="font-size: clamp(24px, 6vw, 36px); margin-bottom: clamp(15px, 3vh, 25px); color: #00ff41;">✓ Practice Complete!</h2>
+      <p style="font-size: clamp(16px, 4vw, 20px); color: #ccc; margin-bottom: clamp(20px, 4vh, 30px);">You've mastered all 4 spells!</p>
+      <div style="font-size: clamp(14px, 3.5vw, 18px); color: #888; margin-bottom: clamp(20px, 4vh, 30px);">
+        <div style="margin: 10px 0;">🛡️ Shield - Circle</div>
+        <div style="margin: 10px 0;">🔥 Fireball - Horizontal Line</div>
+        <div style="margin: 10px 0;">❄️ Frost - Vertical Line</div>
+        <div style="margin: 10px 0;">⚡ Lightning - Diagonal Line</div>
+      </div>
+      <button id="continue-to-game-btn" style="
+        padding: clamp(12px, 2.5vw, 16px) clamp(30px, 5vw, 40px);
+        font-size: clamp(14px, 3vw, 18px);
+        font-weight: 600;
+        background-color: #00ff41;
+        color: #000;
+        border: none;
+        border-radius: 8px;
+        cursor: pointer;
+        min-height: 48px;
+      ">Start Playing</button>
+    `;
+    
+    document.body.appendChild(this.practiceOverlay);
+    
+    // Save to localStorage that practice is complete
+    localStorage.setItem(this.PRACTICE_STORAGE_KEY, 'true');
+    
+    // Set up continue button
+    const continueBtn = this.practiceOverlay.querySelector('#continue-to-game-btn') as HTMLButtonElement;
+    if (continueBtn) {
+      continueBtn.addEventListener('click', () => {
+        this.exitPracticeMode();
+      });
+    }
+  }
+
+  /**
+   * Exit practice mode and start game
+   */
+  private exitPracticeMode(): void {
+    this.isPracticeMode = false;
+    this.cleanupPracticeUI();
+    
+    if (this.practiceOverlay) {
+      this.practiceOverlay.remove();
+      this.practiceOverlay = null;
+    }
+    
+    // Transition to active game state
+    this.state = AppState.ACTIVE;
+    console.log('Exiting practice mode - game is now active');
   }
   
   /**
@@ -667,10 +1259,58 @@ export class Application {
     if (result) {
       this.lastRecognizedSpell = result;
       this.spellDisplayTimer = 0;
+      
+      // Check if we're in practice mode
+      if (this.isPracticeMode && this.state === AppState.PRACTICING) {
+        this.handlePracticeSpellCast(result);
+      }
     }
     
     // Clear trail
     this.currentTrail = [];
+  }
+
+  /**
+   * Handle spell cast during practice mode
+   */
+  private handlePracticeSpellCast(spell: RecognizedSpell): void {
+    const targetSpell = this.practiceSpells[this.currentPracticeIndex];
+    
+    // Check if the cast spell matches the target
+    if (spell.type === targetSpell) {
+      console.log(`✓ Correct spell cast: ${spell.type}`);
+      
+      // Clean up current practice UI
+      this.cleanupPracticeUI();
+      
+      // Move to next spell after showing result
+      setTimeout(() => {
+        this.currentPracticeIndex++;
+        this.showPracticeSpell();
+      }, 2000);
+    } else {
+      console.log(`✗ Wrong spell. Expected ${targetSpell}, got ${spell.type}`);
+      // Let them try again - no penalty
+    }
+  }
+
+  /**
+   * Clean up practice UI elements
+   */
+  private cleanupPracticeUI(): void {
+    // Remove reference animation
+    const refAnim = document.getElementById('reference-animation');
+    if (refAnim) refAnim.remove();
+    
+    // Remove instruction overlay
+    const instrOverlay = document.getElementById('practice-instruction-overlay');
+    if (instrOverlay) instrOverlay.remove();
+    
+    // Cancel animation
+    if (this.demonstrationAnimationId) {
+      cancelAnimationFrame(this.demonstrationAnimationId);
+      this.demonstrationAnimationId = null;
+    }
   }
   
   // Track last log time for wrist detection
@@ -1233,8 +1873,9 @@ export class Application {
       if (calState === CalibrationState.COMPLETED && this.baseline) {
         this.displayBaselineData();
       }
-    } else if (this.state === AppState.ACTIVE) {
+    } else if (this.state === AppState.ACTIVE || this.state === AppState.PRACTICING) {
       // SKIP-CALIBRATION: Render skeleton + spell effects
+      // Also render during PRACTICING state
       this.renderSkeletonAndSpells();
       this.renderWristStatusHTML();
       this.renderSpellResultHTML();
