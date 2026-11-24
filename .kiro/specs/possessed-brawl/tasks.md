@@ -202,14 +202,14 @@ The implementation uses **TypeScript** for type safety, **MediaPipe Pose** for b
 
 #### Spell System
 
-- [ ] 14. Implement Spell_System with counter table
-  - [ ] 14.1 Define spell costs and damage values
+- [x] 14. Implement Spell_System with counter table
+  - [x] 14.1 Define spell costs and damage values
     - Create configuration object or JSON file with costs (e.g., Shield: 20, Lightning: 30, Fireball: 15, Frost: 25)
     - Define damage values (e.g., Lightning: 25, Fireball: 20, Frost: 15, Shield: 0)
     - Make tunable via configuration
     - _Requirements: 15.1_
 
-  - [ ] 14.2 Create counter table data structure
+  - [x] 14.2 Create counter table data structure
     - Define counter rules:
       - Shield beats Fireball (blocks, no damage)
       - Lightning beats Shield (breaks shield, deals damage)
@@ -218,7 +218,7 @@ The implementation uses **TypeScript** for type safety, **MediaPipe Pose** for b
     - Store as JSON or TypeScript constant for easy tuning
     - _Requirements: 15.3, 15.4_
 
-  - [ ] 14.3 Implement resolveSpell method
+  - [x] 14.3 Implement resolveSpell method
     - Check counter table for attacker spell vs defender state
     - Apply damage according to rules
     - Apply effects (shield activation, frost slow)

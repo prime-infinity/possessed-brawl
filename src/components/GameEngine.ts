@@ -8,6 +8,7 @@
  */
 
 import { SpellType, RecognizedSpell } from '../types';
+import { SpellSystem, SpellResolution } from './SpellSystem';
 
 /**
  * Match state progression
@@ -53,13 +54,14 @@ export interface GameState {
 
 /**
  * Result of spell casting attempt
- * **Validates: Requirement 15.2**
+ * **Validates: Requirement 15.2, 16.1-16.6**
  */
 export interface CastResult {
   success: boolean;
   spell: SpellType;
   manaCost: number;
   reason?: string;  // If failed: "insufficient mana", "on cooldown", etc.
+  resolution?: SpellResolution;  // Spell resolution details (if successful)
 }
 
 /**
@@ -95,10 +97,12 @@ export const DEFAULT_GAME_CONFIG: GameConfig = {
 export class GameEngine {
   private state: GameState;
   private config: GameConfig;
+  private spellSystem: SpellSystem;
 
   constructor() {
     this.config = DEFAULT_GAME_CONFIG;
     this.state = this.createInitialState();
+    this.spellSystem = new SpellSystem();
   }
 
   /**
@@ -194,30 +198,52 @@ export class GameEngine {
 
   /**
    * Cast a spell for the player
-   * **Validates: Requirements 15.1-15.2**
+   * **Validates: Requirements 15.1-15.2, 16.1-16.6**
    */
   public castPlayerSpell(spell: RecognizedSpell): CastResult {
-    return this.castSpell(this.state.playerWizard, spell.type);
+    const result = this.castSpell(this.state.playerWizard, this.state.aiWizard, spell.type);
+    
+    // Update combo tracking
+    if (result.success && result.resolution && result.resolution.damage > 0) {
+      this.state.playerCombo++;
+      this.state.aiCombo = 0;
+    } else if (!result.success || (result.resolution && result.resolution.blocked)) {
+      this.state.aiCombo++;
+      this.state.playerCombo = 0;
+    }
+    
+    return result;
   }
 
   /**
    * Cast a spell for the AI
-   * **Validates: Requirements 15.1-15.2**
+   * **Validates: Requirements 15.1-15.2, 16.1-16.6**
    */
   public castAISpell(spellType: SpellType): CastResult {
-    return this.castSpell(this.state.aiWizard, spellType);
+    const result = this.castSpell(this.state.aiWizard, this.state.playerWizard, spellType);
+    
+    // Update combo tracking
+    if (result.success && result.resolution && result.resolution.damage > 0) {
+      this.state.aiCombo++;
+      this.state.playerCombo = 0;
+    } else if (!result.success || (result.resolution && result.resolution.blocked)) {
+      this.state.playerCombo++;
+      this.state.aiCombo = 0;
+    }
+    
+    return result;
   }
 
   /**
-   * Internal spell casting logic
-   * **Validates: Requirements 14.7-14.8, 15.1-15.2**
+   * Internal spell casting logic with spell resolution
+   * **Validates: Requirements 14.7-14.8, 15.1-15.2, 16.1-16.6**
    */
-  private castSpell(wizard: WizardState, spellType: SpellType): CastResult {
-    // Get mana cost (placeholder - will be replaced by Spell_System)
-    const manaCost = this.getManaCost(spellType);
+  private castSpell(attacker: WizardState, defender: WizardState, spellType: SpellType): CastResult {
+    // Get mana cost from spell system
+    const manaCost = this.spellSystem.getManaCost(spellType);
 
     // Check if wizard has enough mana
-    if (wizard.mana < manaCost) {
+    if (attacker.mana < manaCost) {
       return {
         success: false,
         spell: spellType,
@@ -227,36 +253,53 @@ export class GameEngine {
     }
 
     // Deduct mana
-    wizard.mana -= manaCost;
-    wizard.mana = Math.max(wizard.mana, 0);
+    attacker.mana -= manaCost;
+    attacker.mana = Math.max(attacker.mana, 0);
 
     // Set current cast for animation
-    wizard.currentCast = spellType;
-    wizard.castAnimation = 0;
+    attacker.currentCast = spellType;
+    attacker.castAnimation = 0;
 
-    // Apply spell effects (placeholder - will be integrated with Spell_System)
-    // For now, just track the cast
+    // Resolve spell effects using spell system
+    const resolution = this.spellSystem.resolveSpell(spellType, attacker, defender);
+    
+    // Apply resolution effects
+    if (resolution.shieldActivated) {
+      attacker.activeShield = true;
+    }
+    
+    if (resolution.blocked) {
+      // Shield blocked the attack, deactivate shield
+      defender.activeShield = false;
+    }
+    
+    if (resolution.shieldBroken) {
+      // Shield was broken
+      defender.activeShield = false;
+    }
+    
+    if (resolution.frostApplied) {
+      // Apply frost slow
+      defender.frostSlowed = true;
+    }
+    
+    if (resolution.damage > 0) {
+      // Apply damage
+      defender.health -= resolution.damage;
+      defender.health = Math.max(defender.health, 0);
+      
+      // Check for knockout
+      if (defender.health <= 0) {
+        this.endRound();
+      }
+    }
     
     return {
       success: true,
       spell: spellType,
-      manaCost
+      manaCost,
+      resolution
     };
-  }
-
-  /**
-   * Get mana cost for a spell (placeholder)
-   * **Validates: Requirement 15.1**
-   * TODO: Replace with Spell_System integration
-   */
-  private getManaCost(spell: SpellType): number {
-    const costs: Record<SpellType, number> = {
-      [SpellType.SHIELD]: 20,
-      [SpellType.LIGHTNING]: 30,
-      [SpellType.FIREBALL]: 15,
-      [SpellType.FROST]: 25
-    };
-    return costs[spell];
   }
 
   /**
@@ -348,5 +391,12 @@ export class GameEngine {
    */
   public setMatchState(state: MatchState): void {
     this.state.matchState = state;
+  }
+
+  /**
+   * Get spell system (for configuration or UI access)
+   */
+  public getSpellSystem(): SpellSystem {
+    return this.spellSystem;
   }
 }

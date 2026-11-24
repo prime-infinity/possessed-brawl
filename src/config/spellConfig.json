@@ -1,0 +1,46 @@
+{
+  "spells": {
+    "costs": {
+      "shield": 20,
+      "lightning": 30,
+      "fireball": 15,
+      "frost": 25
+    },
+    "damage": {
+      "shield": 0,
+      "lightning": 25,
+      "fireball": 20,
+      "frost": 15
+    }
+  },
+  "counterTable": [
+    {
+      "attacker": "fireball",
+      "defender": "shield",
+      "counters": false,
+      "effect": "blocked",
+      "description": "Shield blocks Fireball completely"
+    },
+    {
+      "attacker": "lightning",
+      "defender": "shield",
+      "counters": true,
+      "effect": "shield_broken",
+      "description": "Lightning breaks Shield and deals damage"
+    },
+    {
+      "attacker": "fireball",
+      "defender": "frost",
+      "counters": true,
+      "effect": "melts_frost",
+      "description": "Fireball melts Frost and deals damage"
+    },
+    {
+      "attacker": "frost",
+      "defender": "lightning",
+      "counters": false,
+      "effect": "slow",
+      "description": "Frost slows Lightning caster (next cast delayed)"
+    }
+  ]
+}
