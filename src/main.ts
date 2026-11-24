@@ -14,6 +14,9 @@ import { Renderer } from './components/Renderer';
 import { ThresholdTuningUI } from './components/ThresholdTuningUI';
 import { StrokeCapture } from './components/StrokeCapture';
 import { GestureRecognizer } from './components/GestureRecognizer';
+import { GameEngine, MatchState } from './components/GameEngine';
+import { SpellSystem } from './components/SpellSystem';
+import { AIWizard } from './components/AIWizard';
 import { Landmarks, BaselineData, MoveType, DetectedMove, RecognizedSpell, OffHandState, WandHand, Stroke, SpellType } from './types';
 
 /**
@@ -50,6 +53,11 @@ export class Application {
   private renderer: Renderer;
   private tuningUI: ThresholdTuningUI | null = null;
   
+  // Stage 2 components
+  private gameEngine: GameEngine | null = null;
+  private spellSystem: SpellSystem | null = null;
+  private aiWizard: AIWizard | null = null;
+  
   // State management
   private state: AppState = AppState.NOT_STARTED;
   private isRunning: boolean = false;
@@ -82,8 +90,8 @@ export class Application {
   private demonstrationAnimationId: number | null = null;
   private readonly PRACTICE_STORAGE_KEY = 'spell_duel_practice_completed';
   
-  // Simulated stamina for Stage 1 testing (will be replaced in Stage 2)
-  private simulatedStamina: number = 100;
+  // Stage 2 game state
+  private inGameplayMode: boolean = false;
   
   // Timing
   private lastFrameTime: number = 0;
@@ -332,9 +340,9 @@ export class Application {
    * Start the application
    * 
    * SKIP-CALIBRATION BRANCH: Skip hand selection and calibration entirely.
-   * Just log wrist detection in real-time.
+   * Enter gameplay mode with Stage 2 components initialized.
    * 
-   * **Validates: Requirements 1.1, 2.1**
+   * **Validates: Requirements 1.1, 2.1, 18.1-18.4**
    */
   async start(): Promise<void> {
     if (this.state !== AppState.NOT_STARTED && this.state !== AppState.ERROR) {
@@ -344,7 +352,7 @@ export class Application {
     
     try {
       this.state = AppState.INITIALIZING;
-      console.log('Starting application (SKIP-CALIBRATION mode)...');
+      console.log('Starting application - Gameplay Mode...');
       
       // Hide loading screen
       this.loadingScreen.classList.remove('active');
@@ -354,6 +362,10 @@ export class Application {
       await this.poseDetector.initialize();
       console.log('Pose detector initialized successfully');
       
+      // Initialize Stage 2 components for gameplay
+      console.log('Initializing Stage 2 components...');
+      this.initializeGameplayComponents();
+      
       // Show canvas for rendering
       this.canvas.classList.add('active');
       this.showVideoPreview();
@@ -361,11 +373,12 @@ export class Application {
       // Show initial instruction overlay
       this.showInitialInstructions();
       
-      // SKIP hand selection and calibration - go directly to active state
+      // SKIP hand selection and calibration - go directly to active gameplay
       console.log('⚠️ SKIPPING hand selection and calibration');
-      console.log('📊 Will log wrist detection every second...');
+      console.log('🎮 Starting gameplay mode...');
       this.state = AppState.ACTIVE;
       this.calibrationCompleted = true;
+      this.inGameplayMode = true;
       
       // Start main loop
       this.isRunning = true;
@@ -377,6 +390,48 @@ export class Application {
       this.handleError(error);
       throw error;
     }
+  }
+
+  /**
+   * Initialize Stage 2 gameplay components
+   * **Validates: Requirements 18.1-18.4**
+   */
+  private initializeGameplayComponents(): void {
+    // Initialize SpellSystem
+    this.spellSystem = new SpellSystem();
+    console.log('✓ SpellSystem initialized');
+    
+    // Initialize GameEngine
+    this.gameEngine = new GameEngine();
+    this.gameEngine.initialize({
+      roundDuration: 90, // 90 seconds (config uses seconds, not milliseconds)
+      manaRegenRate: 5, // 5 mana per second
+      startingHealth: 100,
+      startingMana: 100
+    });
+    console.log('✓ GameEngine initialized');
+    
+    // Initialize AIWizard
+    this.aiWizard = new AIWizard(undefined, this.spellSystem);
+    this.aiWizard.initialize({
+      baseCastInterval: 3000, // AI casts every 3 seconds (base)
+      castIntervalVariation: 1000, // +/- 1 second variation
+      counterBias: 0.3, // 30% bias toward counter spells
+      adaptiveWindow: 10, // Track last 10 player casts
+      difficultyMin: 0.5, // AI can be 2x slower
+      difficultyMax: 1.5 // AI can be 1.5x faster
+    });
+    console.log('✓ AIWizard initialized');
+    
+    // Initialize GestureRecognizer for gameplay
+    if (!this.gestureRecognizer) {
+      this.gestureRecognizer = new GestureRecognizer();
+      console.log('✓ GestureRecognizer initialized');
+    }
+    
+    // Start the round
+    this.gameEngine.startRound();
+    console.log('✓ Round started');
   }
 
   /**
@@ -1153,6 +1208,7 @@ export class Application {
    * Process a single frame through the component pipeline
    * 
    * @param deltaTime - Time elapsed since last frame (milliseconds)
+   * **Validates: Requirements 18.2, 18.3**
    */
   private async processFrame(deltaTime: number): Promise<void> {
     // Step 1: Pose Detection
@@ -1173,15 +1229,112 @@ export class Application {
     
     this.previousLandmarks = this.currentLandmarks;
     
-    // SKIP-CALIBRATION: Log wrist detection every second
-    // REMOVED - no longer needed
-    // this.logWristDetection();
+    // Step 2: Update Stage 2 components if in gameplay mode
+    if (this.inGameplayMode && this.gameEngine && this.aiWizard) {
+      this.updateGameplay(deltaTime);
+    }
     
-    // SKIP-CALIBRATION: Spell casting logic
+    // Step 3: Spell casting logic
     this.processSpellCasting(deltaTime);
     
     // Step 4: Rendering
     this.render();
+  }
+
+  /**
+   * Update gameplay components (GameEngine and AIWizard)
+   * **Validates: Requirements 17.1, 17.2, 17.3, 18.2, 18.3**
+   */
+  private updateGameplay(deltaTime: number): void {
+    if (!this.gameEngine || !this.aiWizard) return;
+    
+    // Update game engine (mana regen, round timer, etc.)
+    this.gameEngine.update(deltaTime);
+    
+    // Update AI wizard
+    this.aiWizard.update(deltaTime);
+    
+    // Check if AI wants to cast a spell
+    const aiSpell = this.aiWizard.selectSpell(this.gameEngine.getState());
+    if (aiSpell) {
+      const castResult = this.gameEngine.castAISpell(aiSpell.type);
+      
+      if (castResult.success) {
+        console.log(`🤖 AI cast ${aiSpell.type} (cost: ${castResult.manaCost} mana)`);
+      } else {
+        console.log(`🤖 AI spell cast failed: ${castResult.reason}`);
+      }
+    }
+    
+    // Check for round end
+    const roundResult = this.gameEngine.checkRoundEnd();
+    if (roundResult) {
+      this.handleRoundEnd(roundResult.winner);
+    }
+  }
+
+  /**
+   * Handle round end
+   */
+  private handleRoundEnd(winner: 'player' | 'ai' | 'draw'): void {
+    console.log(`Round ended! Winner: ${winner}`);
+    
+    // Show round end screen
+    const roundEndOverlay = document.createElement('div');
+    roundEndOverlay.style.cssText = `
+      position: fixed;
+      top: 50%;
+      left: 50%;
+      transform: translate(-50%, -50%);
+      background: rgba(0, 0, 0, 0.95);
+      color: white;
+      padding: 40px 60px;
+      border-radius: 15px;
+      font-size: 32px;
+      font-weight: bold;
+      text-align: center;
+      z-index: 10000;
+      border: 3px solid ${winner === 'player' ? '#00ff41' : winner === 'ai' ? '#ff0000' : '#888'};
+    `;
+    
+    const winnerText = winner === 'player' ? 'You Win!' : winner === 'ai' ? 'AI Wins!' : 'Draw!';
+    const emoji = winner === 'player' ? '🎉' : winner === 'ai' ? '😢' : '🤝';
+    
+    if (!this.gameEngine) return;
+    
+    roundEndOverlay.innerHTML = `
+      <div style="font-size: 64px; margin-bottom: 20px;">${emoji}</div>
+      <div>${winnerText}</div>
+      <div style="font-size: 20px; margin-top: 20px; color: #ccc;">
+        Your Score: ${this.gameEngine.getPlayerScore()}<br>
+        AI Score: ${this.gameEngine.getAIScore()}
+      </div>
+      <button id="play-again-btn" style="
+        margin-top: 30px;
+        padding: 15px 40px;
+        font-size: 20px;
+        background-color: #00ff41;
+        color: #000;
+        border: none;
+        border-radius: 8px;
+        cursor: pointer;
+        font-weight: bold;
+      ">Play Again</button>
+    `;
+    
+    document.body.appendChild(roundEndOverlay);
+    
+    // Set up play again button
+    const playAgainBtn = roundEndOverlay.querySelector('#play-again-btn') as HTMLButtonElement;
+    if (playAgainBtn) {
+      playAgainBtn.addEventListener('click', () => {
+        roundEndOverlay.remove();
+        // Restart the round
+        if (this.gameEngine) {
+          this.gameEngine.startRound();
+        }
+      });
+    }
   }
   
   /**
@@ -1235,7 +1388,8 @@ export class Application {
   }
   
   /**
-   * Cast spell - recognize gesture and display result
+   * Cast spell - recognize gesture and pass to GameEngine
+   * **Validates: Requirements 14.8, 15.2, 18.1**
    */
   private castSpell(): void {
     if (this.currentTrail.length < 10) {
@@ -1263,11 +1417,72 @@ export class Application {
       // Check if we're in practice mode
       if (this.isPracticeMode && this.state === AppState.PRACTICING) {
         this.handlePracticeSpellCast(result);
+      } 
+      // Check if we're in gameplay mode (Stage 2)
+      else if (this.inGameplayMode && this.gameEngine) {
+        this.handleGameplaySpellCast(result);
       }
     }
     
     // Clear trail
     this.currentTrail = [];
+  }
+
+  /**
+   * Handle spell cast during gameplay mode (Stage 2)
+   * **Validates: Requirements 14.8, 15.2, 18.1**
+   */
+  private handleGameplaySpellCast(spell: RecognizedSpell): void {
+    if (!this.gameEngine || !this.aiWizard) return;
+    
+    // Cast player spell through GameEngine
+    const castResult = this.gameEngine.castPlayerSpell(spell);
+    
+    if (castResult.success) {
+      console.log(`✓ Player cast ${spell.type} (cost: ${castResult.manaCost} mana)`);
+      
+      // Record successful cast for AI adaptive difficulty
+      this.aiWizard.recordPlayerCast(spell.type, true);
+      
+      // Check for taunt triggers
+      this.aiWizard.triggerTaunt('player_cast', this.gameEngine.getState());
+    } else {
+      console.log(`✗ Spell cast failed: ${castResult.reason}`);
+      
+      // Record failed cast
+      this.aiWizard.recordPlayerCast(spell.type, false);
+      
+      // Display failure message
+      this.showSpellCastFailure(castResult.reason || 'Unknown error');
+    }
+  }
+
+  /**
+   * Show spell cast failure message
+   */
+  private showSpellCastFailure(reason: string): void {
+    const failureOverlay = document.createElement('div');
+    failureOverlay.style.cssText = `
+      position: fixed;
+      top: 50%;
+      left: 50%;
+      transform: translate(-50%, -50%);
+      background: rgba(255, 0, 0, 0.9);
+      color: white;
+      padding: 20px 40px;
+      border-radius: 10px;
+      font-size: 24px;
+      font-weight: bold;
+      z-index: 10000;
+      pointer-events: none;
+    `;
+    failureOverlay.textContent = `Fizzle! ${reason}`;
+    document.body.appendChild(failureOverlay);
+    
+    // Remove after 1.5 seconds
+    setTimeout(() => {
+      failureOverlay.remove();
+    }, 1500);
   }
 
   /**
@@ -1839,28 +2054,16 @@ export class Application {
       debug: {
         thresholds: {},
         cooldowns: {},
-        stamina: this.simulatedStamina,
+        stamina: 100, // Removed simulatedStamina - now using GameEngine mana
         fps: this.currentFps
       }
     });
   }
 
   /**
-   * Update simulated stamina for Stage 1 testing (legacy, will be replaced)
-   */
-  private updateSimulatedStamina(detectedMoves: DetectedMove[], deltaTime: number): void {
-    // Regenerate stamina when idle
-    const regenRate = 5; // 5 per second
-    this.simulatedStamina += regenRate * (deltaTime / 1000);
-    
-    // Clamp stamina to [0, 100]
-    this.simulatedStamina = Math.max(0, Math.min(100, this.simulatedStamina));
-  }
-
-  /**
    * Render the current frame
    * 
-   * **Validates: Requirements 9.1, 9.2**
+   * **Validates: Requirements 9.1, 9.2, 25.1-25.5, 18.4**
    */
   private render(): void {
     if (this.state === AppState.CALIBRATING) {
@@ -1874,11 +2077,104 @@ export class Application {
         this.displayBaselineData();
       }
     } else if (this.state === AppState.ACTIVE || this.state === AppState.PRACTICING) {
-      // SKIP-CALIBRATION: Render skeleton + spell effects
-      // Also render during PRACTICING state
+      // Render skeleton + spell effects (Stage 1)
       this.renderSkeletonAndSpells();
       this.renderWristStatusHTML();
       this.renderSpellResultHTML();
+      
+      // Render game UI if in gameplay mode (Stage 2)
+      if (this.inGameplayMode && this.gameEngine) {
+        this.renderGameUI();
+      }
+    }
+  }
+
+  /**
+   * Render game UI (Stage 2)
+   * **Validates: Requirements 25.1-25.5, 18.4**
+   */
+  private renderGameUI(): void {
+    if (!this.gameEngine) return;
+    
+    const gameState = this.gameEngine.getState();
+    
+    // Update renderer with game state
+    this.renderer.updateState({
+      game: {
+        roundTimer: this.gameEngine.getFormattedTimer(),
+        playerScore: gameState.playerScore,
+        aiScore: gameState.aiScore,
+        playerCombo: gameState.playerCombo,
+        aiCombo: gameState.aiCombo,
+        playerHealth: gameState.playerWizard.health,
+        aiHealth: gameState.aiWizard.health,
+        playerMana: gameState.playerWizard.mana,
+        aiMana: gameState.aiWizard.mana,
+        playerCasting: gameState.playerWizard.currentCast,
+        aiCasting: gameState.aiWizard.currentCast,
+        playerShield: gameState.playerWizard.activeShield,
+        aiShield: gameState.aiWizard.activeShield,
+        tauntText: this.aiWizard?.getCurrentTaunt() || undefined
+      }
+    });
+    
+    // Draw game UI on canvas
+    this.renderer.drawGameUI({
+      roundTimer: this.gameEngine.getFormattedTimer(),
+      playerScore: gameState.playerScore,
+      aiScore: gameState.aiScore,
+      playerCombo: gameState.playerCombo,
+      aiCombo: gameState.aiCombo,
+      playerHealth: gameState.playerWizard.health,
+      aiHealth: gameState.aiWizard.health,
+      playerMana: gameState.playerWizard.mana,
+      aiMana: gameState.aiWizard.mana,
+      playerCasting: gameState.playerWizard.currentCast,
+      aiCasting: gameState.aiWizard.currentCast,
+      playerShield: gameState.playerWizard.activeShield,
+      aiShield: gameState.aiWizard.activeShield,
+      tauntText: this.aiWizard?.getCurrentTaunt() || undefined
+    });
+    
+    // Draw wizards
+    this.renderer.drawWizards({
+      roundTimer: this.gameEngine.getFormattedTimer(),
+      playerScore: gameState.playerScore,
+      aiScore: gameState.aiScore,
+      playerCombo: gameState.playerCombo,
+      aiCombo: gameState.aiCombo,
+      playerHealth: gameState.playerWizard.health,
+      aiHealth: gameState.aiWizard.health,
+      playerMana: gameState.playerWizard.mana,
+      aiMana: gameState.aiWizard.mana,
+      playerCasting: gameState.playerWizard.currentCast,
+      aiCasting: gameState.aiWizard.currentCast,
+      playerShield: gameState.playerWizard.activeShield,
+      aiShield: gameState.aiWizard.activeShield,
+      tauntText: this.aiWizard?.getCurrentTaunt() || undefined
+    });
+    
+    // Draw spell effects if wizards are casting
+    if (gameState.playerWizard.currentCast) {
+      this.renderer.drawEnhancedSpellEffect(
+        gameState.playerWizard.currentCast,
+        gameState.playerWizard.position.x,
+        gameState.playerWizard.position.y,
+        gameState.aiWizard.position.x,
+        gameState.aiWizard.position.y,
+        gameState.playerWizard.castAnimation
+      );
+    }
+    
+    if (gameState.aiWizard.currentCast) {
+      this.renderer.drawEnhancedSpellEffect(
+        gameState.aiWizard.currentCast,
+        gameState.aiWizard.position.x,
+        gameState.aiWizard.position.y,
+        gameState.playerWizard.position.x,
+        gameState.playerWizard.position.y,
+        gameState.aiWizard.castAnimation
+      );
     }
   }
 
