@@ -35,7 +35,7 @@ The implementation uses **TypeScript** for type safety, **MediaPipe Pose** for b
   - Video element (hidden) for webcam feed exists
   - CSS for landscape orientation enforcement
   - Responsive layout for mobile devices
-  - Loading screen and permission request UI
+  - Loading screen with "Start Game" and "Practice Spells" buttons
   - _Requirements: 1.4, 1.5_
 
 - [x] 4. Set up testing framework with TypeScript support
@@ -46,330 +46,113 @@ The implementation uses **TypeScript** for type safety, **MediaPipe Pose** for b
   - Example test verified
   - _Requirements: 22.1-22.7, 24.1-24.4_
 
-### Stage 1: Spell Casting Checkpoint
+### Stage 1: Spell Casting Checkpoint (Simplified Architecture)
 
-#### Pose Detection and Smoothing (Reuse Existing)
+#### Pose Detection and Smoothing
 
-- [x] 5. Pose_Detector component (already implemented from previous project)
+- [x] 5. Pose_Detector component (implemented with simplified flow)
   - [x] 5.1 TypeScript interfaces for Landmarks and PoseDetector exist
   - [x] 5.2 Webcam initialization and permission handling exists
   - [x] 5.3 MediaPipe Pose initialized with lite model
   - [x] 5.4 Frame processing and landmark extraction implemented
   - [x] 5.5 EMA smoothing implemented (alpha=0.3)
   - [x] 5.6 Unit tests for Pose_Detector exist
-  - [x] 5.7 Property test for smoothing stability exists
-  - **Minor updates needed**: Update terminology in comments from "fighter" to "wizard"
+  - **SIMPLIFIED**: No calibration needed, works directly with raw landmarks
   - _Requirements: 1.1-1.7, 3.1-3.3_
 
-#### Calibration System (Adapt Existing)
+#### Initial Pose Detection (Replaces Calibration)
 
-- [ ] 6. Update Calibrator component for Spell Duel
-  - [x] 6.1 Calibrator component structure exists
-  - [x] 6.2 Add wand hand selection screen
-    - Create WandHand enum (LEFT, RIGHT)
-    - Display selection UI with left/right buttons, default right
-    - Store selected wand hand in BaselineData
-    - _Requirements: 2.1_
+- [x] 6. Initial pose detection with instruction overlay
+  - [x] 6.1 Display stick figure with both hands raised on startup
+  - [x] 6.2 Show "Raise Both Hands" instruction
+  - [x] 6.3 Automatically remove overlay once landmarks detected
+  - [x] 6.4 Hardcoded hand assignment (right=wand, left=off-hand)
+  - **REMOVED**: All calibration and hand selection tasks (original 6.2-6.5)
+  - _Requirements: 2.1-2.4_
 
-  - [x] 6.3 Update ready stance detection
-    - Replace "guard position" with "ready stance" terminology
-    - Detect off-hand raised to shoulder height, wand hand relaxed
-    - Update visual guide diagram to show wizard casting stance
-    - _Requirements: 2.2, 2.3, 2.4_
+#### Stroke Capture with Simplified Gesture Detection
 
-  - [x] 6.4 Update baseline recording to include wand wrist position
-    - Record wand wrist's resting baseline position during calibration
-    - Record off-hand wrist's resting baseline position
-    - Update BaselineData interface with wandWristBaseline and offHandWristBaseline
-    - _Requirements: 2.5, 2.6, 2.7, 2.8, 2.9_
+- [x] 7. Implement simplified Stroke_Capture
+  - [x] 7.1 TypeScript interfaces for Stroke and trail points
+  - [x] 7.2 Detect left hand raised (no arming delay, no hysteresis)
+  - [x] 7.3 Record right wrist trail when left hand is raised
+  - [x] 7.4 Detect cast gesture (left hand drops)
+  - [x] 7.5 Display blue glow on left wrist when armed
+  - [x] 7.6 Display golden trail for right wrist when drawing
+  - **REMOVED**: Cancel gesture detection (original 7.5)
+  - **REMOVED**: Complex stroke validation (original 7.6)
+  - **REMOVED**: Off-hand state machine with arming delay
+  - _Requirements: 4.1-4.4, 5.1-5.7, 6.1-6.3_
 
-  - [ ] 6.5 Update unit tests for Calibrator
-    - Test wand hand selection flow
-    - Test ready stance detection (updated from guard position)
-    - Test baseline recording with wand/off-hand wrist positions
+#### Simple Directional Gesture Recognizer (Replaces $1 Algorithm)
 
-#### Stroke Capture and Off-Hand Gesture Detection
+- [x] 8. Implement simplified Gesture_Recognizer
+  - [x] 8.1 TypeScript interfaces for RecognizedSpell and SpellType
+  - [x] 8.2 Calculate bounding box aspect ratio
+  - [x] 8.3 Calculate displacement ratio (start-to-end distance / path length)
+  - [x] 8.4 Recognize circle when displacement < 0.25 (Shield)
+  - [x] 8.5 Recognize horizontal line when aspect ratio > 2.0 (Fireball)
+  - [x] 8.6 Recognize vertical line when aspect ratio < 0.5 (Frost)
+  - [x] 8.7 Recognize diagonal line otherwise (Lightning)
+  - [x] 8.8 Return confidence based on how well gesture matches expected parameters
+  - **REMOVED**: All $1 algorithm tasks (original 8.2-8.7)
+  - **REMOVED**: Template system (original 8.5-8.7)
+  - _Requirements: 8.1-8.8, 9.1-9.5_
 
-- [x] 7. Implement Stroke_Capture component
-  - [x] 7.1 Create TypeScript interfaces
-    - Define OffHandState enum (IDLE, READY_ARMING, READY_ARMED, CAST, CANCEL)
-    - Define Stroke interface (array of {x, y} points, timestamp)
-    - Define TrailPoint interface (x, y, age for fade)
-    - Define StrokeCaptureConfig interface (all tunable thresholds)
-    - _Requirements: 4.5, 5.6, 6.4, 7.4_
+#### Practice Mode (Replaces Template Recording)
 
-  - [x] 7.2 Implement off-hand ready gesture detection
-    - Detect off-hand wrist raised to shoulder height or above
-    - Implement 300ms arming delay with timer
-    - Apply hysteresis to threshold (e.g., +/- 10% margin)
-    - Transition from IDLE → READY_ARMING → READY_ARMED
-    - _Requirements: 4.1, 4.2, 4.3_
-
-  - [x] 7.3 Implement wand trail recording
-    - WHILE off-hand is READY_ARMED, record wand wrist position each frame
-    - Store as array of {x, y} points (screen coordinates)
-    - Maintain separate visual trail buffer with lag (configurable lag frames)
-    - Update trail point ages and remove points older than fade duration
-    - _Requirements: 5.1, 5.2, 5.3, 5.4, 5.5_
-
-  - [x] 7.4 Implement cast gesture detection (off-hand lower)
-    - Detect off-hand wrist drops below shoulder height (with hysteresis)
-    - Transition from READY_ARMED → CAST
-    - Finalize stroke (make available via getStroke())
-    - Clear wand trail from display
-    - Return to IDLE state
-    - _Requirements: 6.1, 6.2, 6.3, 6.4_
-
-  - [x] 7.5 Implement cancel gesture detection (off-hand shake/move)
-    - Detect off-hand horizontal movement beyond threshold while READY_ARMED
-    - Transition to CANCEL state
-    - Discard current stroke
-    - Clear wand trail
-    - Return to IDLE state
-    - _Requirements: 7.1, 7.2, 7.3, 7.4_
-
-  - [x] 7.6 Implement stroke validation
-    - Calculate stroke length (total Euclidean distance)
-    - Calculate bounding box size (max x/y - min x/y)
-    - Reject strokes below minimum length threshold
-    - Reject strokes below minimum bounding box threshold
-    - _Requirements: 5.7_
-
-  - [ ] 7.7 Write unit tests for Stroke_Capture
-    - Test off-hand state machine transitions with synthetic landmarks
-    - Test arming delay timing (should not arm before 300ms)
-    - Test hysteresis (should not flicker at threshold boundary)
-    - Test cancel gesture detection with horizontal movement
-    - Test stroke validation (min length, min bounding box)
-    - _Requirements: 22.5, 22.6_
-
-  - [ ]* 7.8 Write property test for off-hand state transitions
-    - **Property 4: Off-Hand State Transitions**
-    - **Validates: Requirements 4.1, 4.2, 6.1, 7.1**
-    - Generate arbitrary sequences of off-hand positions
-    - Verify state machine transitions are valid (no invalid jumps)
-
-#### $1 Unistroke Recognizer
-
-- [x] 8. Implement Gesture_Recognizer component with $1 algorithm
-  - [x] 8.1 Create TypeScript interfaces
-    - Define RecognizedSpell interface (type, confidence, matchScore)
-    - Define SpellType enum (SHIELD, LIGHTNING, FIREBALL, FROST, FIZZLE)
-    - Define SpellTemplate interface (type, array of normalized points)
-    - Define GestureRecognizer interface
-    - _Requirements: 8.1-8.9, 9.1-9.4_
-
-  - [x] 8.2 Implement $1 preprocessing steps
-    - Implement resample(stroke, N) → resample to 64 points
-    - Implement rotateToIndicativeAngle(points) → rotate to 0°
-    - Implement scaleToReferenceSquare(points) → scale to unit square
-    - Implement translateToOrigin(points) → translate centroid to (0, 0)
-    - _Requirements: 8.2, 8.3, 8.4, 8.5_
-
-  - [x] 8.3 Implement $1 distance calculation
-    - Implement pathDistance(path1, path2) → average point-to-point distance
-    - Both paths must be same length (N points)
-    - Use Euclidean distance for each point pair
-    - _Requirements: 8.6_
-
-  - [x] 8.4 Implement recognize(stroke) method
-    - Preprocess stroke (resample, rotate, scale, translate)
-    - Compare to all templates using pathDistance
-    - Find best match (minimum distance)
-    - Reject if distance > rejection threshold → return FIZZLE
-    - Calculate confidence: 1 - (distance / threshold)
-    - Return RecognizedSpell with type, confidence, matchScore
-    - _Requirements: 8.1, 8.6, 8.7, 8.8_
-
-  - [x] 8.5 Implement default spell templates
-    - Generate circle template (64 points, 360° / 64 per point)
-    - Generate zigzag template (64 points, 3-4 peaks, sin wave with sharp corners)
-    - Generate straight line template (64 points, horizontal line)
-    - Generate V shape template (64 points, 45° down then 45° up)
-    - Store as DEFAULT_TEMPLATES constant
-    - _Requirements: 9.1, 9.2, 9.3, 9.4, 9.5_
-
-  - [x] 8.6 Implement template training system
-    - Create trainTemplate(spellType, samples[3]) method
-    - Preprocess all 3 samples with $1 normalization
-    - Average corresponding points across samples
-    - Store averaged template in memory
-    - _Requirements: 9.6_
-
-  - [x] 8.7 Implement template persistence
-    - Save trained templates to localStorage as JSON
-    - Load templates from localStorage on initialization
-    - Fall back to default templates if localStorage unavailable
-    - Provide resetToDefaults() method to restore shipped templates
-    - _Requirements: 9.7, 9.8_
-
-  - [x] 8.8 Write unit tests for $1 algorithm
-    - Test resample with known point counts
-    - Test rotation invariance: same shape at 0°, 45°, 90°, 180° matches same template
-    - Test scale invariance: same shape at 50%, 100%, 200% size matches same template
-    - Test position invariance: same shape at different canvas positions matches same template
-    - Test rejection threshold: non-matching strokes return FIZZLE
-    - _Requirements: 22.1, 22.2, 22.3, 22.4_
-
-  - [x] 8.9 Write unit tests for spell template matching
-    - Test circle template matches circles
-    - Test zigzag template matches zigzags
-    - Test straight line template matches straight lines
-    - Test V shape template matches V shapes
-    - Test template training with 3 samples
-    - _Requirements: 23.1, 23.2, 23.3, 23.4_
-
-  - [ ]* 8.10 Write property test for stroke normalization invariance
-    - **Property 1: Stroke Normalization Invariance**
-    - **Validates: Requirements 22.2, 22.3, 22.4**
-    - Generate arbitrary strokes with transformations (translate, rotate, scale)
-    - Verify normalized output is equivalent (within tolerance)
-
-  - [ ]* 8.11 Write property test for template distinctiveness
-    - **Property 5: Template Distinctiveness**
-    - **Validates: Requirements 23.5**
-    - For each pair of default templates, verify distance > rejection threshold
-
-#### Template Recording UI
-
-- [ ] 9. Implement template training UI
-  - [x] 9.1 Create "Train my spells" screen
-    - Display instructions: "Draw each spell 3 times"
-    - Show current spell being trained (SHIELD, LIGHTNING, FIREBALL, FROST)
-    - Show sample count (1/3, 2/3, 3/3)
-    - Provide visual feedback when each sample is recorded
-    - _Requirements: 9.6_
-
-  - [x] 9.2 Implement training flow
-    - User raises off-hand, draws spell, lowers off-hand (same as normal casting)
-    - Record stroke as training sample
-    - Repeat 3 times per spell
-    - After 3 samples, train template and move to next spell
-    - After all 4 spells trained, save to localStorage and return to game
-    - _Requirements: 9.6, 9.7_
-
-  - [x] 9.3 Add "Reset to defaults" button
-    - Clear trained templates from localStorage
-    - Load default templates
-    - Display confirmation message
-    - _Requirements: 9.8_
-
-  - [x] 9.4 Add "Train my spells" option to main menu
-    - Make accessible from main menu or setup screen
-    - Allow re-training at any time (overwrites previous training)
-    - _Requirements: 9.6_
+- [x] 9. Implement practice mode tutorial
+  - [x] 9.1 Create practice mode state and flow
+  - [x] 9.2 Animated demonstration for each spell showing:
+    - Stick figure with left hand raised
+    - Right hand drawing gesture with golden trail
+    - 3-step instructions
+  - [x] 9.3 Transition to practice phase with:
+    - Small looping reference animation in bottom-right
+    - Player's skeleton landmarks visible
+    - Real-time wand trail rendering
+  - [x] 9.4 Require successful cast of each spell to proceed
+  - [x] 9.5 Show completion screen after all 4 spells
+  - [x] 9.6 Save completion to localStorage
+  - [x] 9.7 First-time users see "Practice Spells" button, returning users see "Start Game" and "Practice Spells"
+  - **REMOVED**: All template recording UI tasks (original 9.1-9.4)
+  - _Requirements: 10.5.1-10.5.10_
 
 #### Rendering for Stage 1
 
-- [ ] 10. Update Renderer for Spell Duel (Stage 1 features)
-  - [x] 10.1 Basic Canvas rendering infrastructure exists from previous project
+- [x] 10. Implement Renderer for simplified spell casting
+  - [x] 10.1 Basic Canvas rendering infrastructure
+  - [x] 10.2 Draw skeleton stick figure with landmarks
+  - [x] 10.3 Draw wand trail (golden) with fade
+  - [x] 10.4 Draw blue glow on left wrist when armed
+  - [x] 10.5 Display spell result with:
+    - Spell name and emoji
+    - Confidence percentage
+    - Perfect green gesture shape (circle, line, etc.)
+  - [x] 10.6 Placeholder spell effects (emoji-based for Stage 1)
+  - [x] 10.7 Wrist status overlay showing armed state
+  - **REMOVED**: Complex debug overlay tasks (simplified to basic status)
+  - _Requirements: 10.1-10.5, 11.1-11.5_
 
-  - [x] 10.2 Implement wand trail rendering
-    - Draw polyline connecting trail points
-    - Apply gradient alpha based on age (fade over 500ms)
-    - Use warm color (gold/orange) for visual appeal
-    - Draw with smooth line joins
-    - _Requirements: 5.3, 5.4_
+#### Stage 1 Integration
 
-  - [x] 10.3 Implement off-hand rune glow rendering
-    - Draw glowing circle under off-hand when READY_ARMED
-    - Apply shadow/blur effect for glow
-    - Pulse intensity (optional: animate between 0.7-1.0 alpha)
-    - Use cool color (blue/cyan) to contrast with wand trail
-    - _Requirements: 4.4_
+- [x] 11. Wire Stage 1 components together (simplified)
+  - [x] 11.1 Main application flow without calibration
+  - [x] 11.2 Direct transition: pose detected → practice mode (first time) or active (returning)
+  - [x] 11.3 Practice mode integration with spell recognition
+  - [x] 11.4 Spell casting with visual feedback
+  - **REMOVED**: Threshold tuning UI (not needed for simple gestures)
+  - **REMOVED**: Template training flow
+  - _Requirements: 1.1, 2.1-2.4, 10.5.1-10.5.10_
 
-  - [x] 10.4 Implement spell result overlay
-    - Display spell name in large text (center screen)
-    - Display confidence percentage below name
-    - Display "FIZZLE" in red if recognition failed
-    - Draw recognized stroke path as overlay (semi-transparent)
-    - Clear after 1-2 seconds
-    - _Requirements: 10.1, 10.2, 10.3, 10.4, 10.5_
-
-  - [x] 10.5 Implement placeholder spell effects
-    - Shield: glowing circle outline around player stick figure
-    - Lightning: zigzag lightning bolt flash across screen
-    - Fireball: orange/red circle projectile moving horizontally
-    - Frost: blue wave effect expanding outward
-    - Simple procedural drawing (no sprites)
-    - _Requirements: 11.1, 11.2, 11.3, 11.4, 11.5_
-
-  - [x] 10.6 Update debug overlay for Spell Duel
-    - Display off-hand state (IDLE, READY_ARMING, READY_ARMED, CAST, CANCEL)
-    - Display wand trail points count
-    - Display match scores for all 4 spell templates
-    - Display active thresholds (off-hand raise, cancel distance, rejection threshold)
-    - Display current stroke length and bounding box size
-    - Keep existing landmark visualization
-    - _Requirements: 12.1, 12.2, 12.3, 12.4, 12.5, 12.6, 12.7, 12.8_
-
-  - [x] 10.7 Debug mode toggle (D key) already exists
-
-  - [ ]* 10.8 Write visual regression tests for rendering
-    - Test wand trail rendering with various trail lengths
-    - Test rune glow rendering
-    - Test spell result overlay formatting
-
-#### Stage 1 Integration and Testing
-
-- [ ] 11. Wire Stage 1 components together
-  - [x] 11.1 Update main application class
-    - Remove fighting move logic
-    - Initialize Pose_Detector (reuse existing)
-    - Initialize Calibrator (updated with wand selection)
-    - Initialize Stroke_Capture (new)
-    - Initialize Gesture_Recognizer (new)
-    - Initialize Renderer (updated)
-    - Implement main loop: pose → stroke capture → recognition → display
-    - _Requirements: 1.1, 2.1, 4.1, 8.1, 10.1_
-
-  - [x] 11.2 Implement Stage 1 flow
-    - Show wand hand selection screen
-    - Transition to calibration screen with visual guide
-    - Display calibration progress
-    - Transition to spell casting mode after successful calibration
-    - Display wand trail, rune glow, and spell results
-    - _Requirements: 2.1, 2.2, 2.3, 2.4_
-
-  - [ ] 11.3 Add threshold tuning UI for Stage 1
-    - Update existing tuning UI to remove fighting move thresholds
-    - Add sliders for off-hand raise threshold
-    - Add slider for arming delay (milliseconds)
-    - Add slider for hysteresis margin
-    - Add slider for cancel horizontal threshold
-    - Add slider for min stroke length
-    - Add slider for min bounding box size
-    - Add slider for recognition rejection threshold
-    - Display current values, save to localStorage
-    - NOTE: Existing ThresholdTuningUI from old project needs updating, but not critical for Stage 1 checkpoint
-    - _Requirements: 4.5, 5.6, 6.4, 7.4, 8.9_
-
-  - [x] 11.4 Add "Train my spells" flow integration
-    - Add button/menu item to access training mode
-    - Integrate template recording UI
-    - Test both default and trained template paths
-    - _Requirements: 9.6, 9.7, 9.8_
-
-  - [x] 11.5 Mobile optimizations already implemented (MediaPipe lite, frame skipping)
-
-  - [ ]* 11.6 Write integration tests for Stage 1 flow
-    - Test full pipeline: webcam → pose → calibration → stroke capture → recognition → display
-    - Test wand hand selection flow
-    - Test calibration retry
-    - Test template training flow (record 3 samples per spell)
-    - Test error handling for webcam denial
-
-- [ ] 12. **CHECKPOINT: Stage 1 Complete - User Testing and Approval Required**
-  - Verify pose detection maintains 20-30 fps on target mobile devices
-  - Verify spell recognition feels responsive (<300ms from cast to result)
-  - Verify recognition accuracy >90% for trained templates, >80% for defaults
-  - Verify user can complete calibration within 3 attempts
-  - Verify placeholder spell effects display correctly
-  - Verify debug overlay shows all relevant information
-  - **User should test casting all four spells using both default and trained templates**
-  - **User should confirm recognition accuracy and responsiveness**
-  - **DO NOT PROCEED TO STAGE 2 WITHOUT USER APPROVAL**
-  - _Requirements: 1.1, 2.1, 3.2, 4.1, 5.1, 6.1, 7.1, 8.1, 9.1, 10.1, 11.1, 12.1_
+- [x] 12. **CHECKPOINT: Stage 1 Complete - Simplified Implementation Verified**
+  - Verify pose detection maintains 20-30 fps
+  - Verify spell recognition feels responsive
+  - Verify practice mode teaches all 4 gestures effectively
+  - Verify gesture recognition accuracy with simple directional approach
+  - **User confirmed: Stage 1 simplified architecture working correctly**
+  - **DO NOT REVERT TO COMPLEX CALIBRATION OR $1 ALGORITHM**
+  - _Requirements: 1.1, 2.1-2.4, 8.1-8.8, 9.1-9.5, 10.1-10.5, 10.5.1-10.5.10_
 
 ### Stage 2: Wizard Duel (After User Approval Only)
 

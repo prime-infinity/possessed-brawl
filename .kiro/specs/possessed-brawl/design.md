@@ -1,37 +1,48 @@
-# Design Document: Spell Duel
+# Design Document: Spell Duel (Simplified Architecture)
 
 ## Overview
 
-Spell Duel is a browser-based wizard duel controlled through webcam pose detection. The system captures player movements via MediaPipe Pose and translates hand gestures into spell casting using the $1 Unistroke Recognizer. The player stands waist-up, raises their off-hand to ready a spell, draws a shape in the air with their wand hand, and lowers the off-hand to cast.
+Spell Duel is a browser-based wizard duel controlled through webcam pose detection. The system captures player movements via MediaPipe Pose and translates simple hand gestures into spell casting using a custom directional gesture recognizer. The player stands waist-up, raises their left hand to ready a spell, draws a simple directional shape in the air with their right hand, and lowers the left hand to cast.
+
+**Key Simplifications:**
+- **No calibration**: Skip directly to gameplay after detecting pose
+- **Hardcoded hands**: Right=wand, Left=off-hand (no selection UI)
+- **Simple gesture recognition**: Aspect ratio-based detection (circle, horizontal, vertical, diagonal)
+- **Practice mode**: Animated tutorial teaches all 4 spells before first gameplay
+- **No spell training**: Fixed gesture patterns, no customization needed
 
 The project targets mobile devices (Chrome v100+, Safari v15+) running in landscape orientation (HTTP for local development, HTTPS for mobile device testing) at 20-30 fps.
 
 The design follows a three-stage implementation plan:
-1. **Stage 1 (Initial Implementation)**: Pose input, calibration, wand selection, gesture recognition, spell casting checkpoint with placeholder effects
+1. **Stage 1 (Current)**: Pose input, simple gesture recognition, practice mode, spell casting with visual feedback
 2. **Stage 2**: Game engine with wizard duel, AI opponent, mana/health, spell effects and counters, round timer
 3. **Stage 3**: Visual and audio polish with procedural effects
 
-This document emphasizes Stage 1 architecture since implementation will pause after this stage for user confirmation before proceeding to Stage 2.
-
 ### Key Technologies
 
-- **MediaPipe Pose (JavaScript)**: Real-time body landmark detection ([MediaPipe Pose Landmarker](https://developers.google.com/mediapipe/solutions/vision/pose_landmarker))
-- **$1 Unistroke Recognizer**: Shape recognition algorithm (implemented from scratch, no dependencies)
+- **MediaPipe Pose (JavaScript)**: Real-time body landmark detection
+- **Custom Directional Recognizer**: Aspect ratio and displacement-based gesture recognition (replaces $1 algorithm)
 - **Web Audio API**: Browser-native procedural sound effect playback
 - **HTML5 Canvas**: 2D rendering with requestAnimationFrame
-- **Vanilla JavaScript/TypeScript**: No framework dependency to minimize bundle size and maximize mobile performance
+- **Vanilla JavaScript/TypeScript**: No framework dependency
 
 ### Research Summary
 
-**MediaPipe Pose Performance**: MediaPipe Pose has been successfully deployed in browser-based fitness and pose tracking applications achieving 25-60 FPS on consumer hardware. The library extracts 33 body landmarks including the critical joints needed for this game (wrists, shoulders, head). It runs entirely client-side with no server dependency.
+**MediaPipe Pose Performance**: Successfully achieves 25-60 FPS on consumer hardware. Extracts 33 body landmarks including wrists, shoulders, and head. Runs entirely client-side.
 
-**$1 Unistroke Recognizer**: Published by Jacob O. Wobbrock, Andrew D. Wilson, and Yang Li in 2007. A simple, rotation/scale/position-invariant gesture recognizer requiring only ~100 lines of code. Resample → rotate → scale → translate → compare. Proven effective for single-stroke shape recognition with 97%+ accuracy on standard gesture datasets.
+**Directional Gesture Recognition**: Simple aspect ratio analysis provides reliable detection for 4 basic directional gestures:
+- Circle: displacement-to-length ratio < 0.25
+- Horizontal: aspect ratio > 2.0
+- Vertical: aspect ratio < 0.5  
+- Diagonal: aspect ratio between 0.5 and 2.0
 
-**EMA Filtering**: Exponential Moving Average (EMA) with alpha around 0.3 provides a good balance—small enough to smooth jittery webcam input but large enough to remain responsive to intentional movements.
+This approach is more reliable than complex template matching for simple directional gestures and requires no training or calibration.
+
+**EMA Filtering**: Exponential Moving Average with alpha=0.3 smooths jittery webcam input while maintaining responsiveness.
 
 ## Architecture
 
-### Component Structure
+### Component Structure (Simplified)
 
 ```
 ┌─────────────────────────────────────────────────────────────────┐
@@ -39,82 +50,27 @@ This document emphasizes Stage 1 architecture since implementation will pause af
 │  - Initialization and lifecycle management                       │
 │  - Component wiring and event flow                               │
 │  - Main game loop coordination                                   │
+│  - Practice mode management                                      │
 └─────────────────────────────────────────────────────────────────┘
                                   │
         ┌─────────────────────────┼─────────────────────────┐
         │                         │                         │
         ▼                         ▼                         ▼
 ┌──────────────┐         ┌──────────────┐         ┌──────────────┐
-│ Pose_Detector│         │  Calibrator  │         │Stroke_Capture│
-│              │────────▶│              │────────▶│              │
-│ - Webcam     │         │ - Wand hand  │         │ - Off-hand   │
-│   capture    │         │   selection  │         │   ready/cast │
-│ - MediaPipe  │         │ - Baseline   │         │ - Wand trail │
-│   processing │         │   recording  │         │   recording  │
-│ - Landmark   │         │ - Resting    │         │ - Cancel     │
-│   extraction │         │   wrist pos  │         │   detection  │
+│ Pose_Detector│         │Stroke_Capture│         │   Gesture    │
+│              │────────▶│              │────────▶│  Recognizer  │
+│ - Webcam     │         │ - Left hand  │         │              │
+│   capture    │         │   ready/cast │         │ - Aspect     │
+│ - MediaPipe  │         │ - Right hand │         │   ratio      │
+│   processing │         │   trail      │         │ - Displace-  │
+│ - Landmark   │         │   recording  │         │   ment calc  │
+│   extraction │         │              │         │              │
 └──────────────┘         └──────────────┘         └──────────────┘
-        │                                                  │
-        │                                                  │
-        └──────────────────┬───────────────────────────────┘
-                           │
-                           ▼
-                  ┌──────────────┐
-                  │   Gesture    │
-                  │  Recognizer  │
-                  │              │
-                  │ - $1 algo    │
-                  │ - Template   │
-                  │   matching   │
-                  │ - Training   │
-                  └──────────────┘
-                           │
-                           ▼
-                  ┌──────────────┐
-                  │  Game_Engine │
-                  │              │
-                  │ - Wizard     │
-                  │   state      │
-                  │ - Health &   │
-                  │   mana       │
-                  │ - Spell      │
-                  │   resolution │
-                  │ - Scoring    │
-                  └──────────────┘
-                           │
-        ┌──────────────────┼──────────────────┐
-        │                  │                  │
-        ▼                  ▼                  ▼
-┌──────────────┐  ┌──────────────┐  ┌──────────────┐
-│Spell_System  │  │ AI_Wizard    │  │Audio_Manager │
-│              │  │              │  │              │
-│ - Mana costs │  │ - Weighted   │  │ - Procedural │
-│ - Damage     │  │   spell pick │  │   sounds     │
-│ - Counter    │  │ - Adaptive   │  │ - Web Audio  │
-│   table      │  │   difficulty │  │   API        │
-│ - Effects    │  │ - Taunts     │  │              │
-└──────────────┘  └──────────────┘  └──────────────┘
-        │                  │                  │
-        └──────────────────┼──────────────────┘
-                           │
-                           ▼
-                  ┌──────────────┐
-                  │   Renderer   │
-                  │              │
-                  │ - Stick      │
-                  │   wizards    │
-                  │ - Wand trail │
-                  │ - Rune glow  │
-                  │ - Spell      │
-                  │   sigils     │
-                  │ - Debug      │
-                  │   overlay    │
-                  └──────────────┘
 ```
 
 ### Module Interfaces and Data Flow
 
-#### Stage 1 Data Flow (Spell Casting Checkpoint)
+#### Stage 1 Data Flow (Simplified)
 
 ```
 Webcam Feed
@@ -130,24 +86,27 @@ Pose_Detector.smoothLandmarks()
     ├─▶ Smoothed landmarks
     │
     ▼
-Calibrator.selectWandHand(landmarks)
+Application.processSpellCasting()
     │
-    ├─▶ WandHand (LEFT or RIGHT)
-    │
-    ▼
-Calibrator.recordBaseline(landmarks)
-    │
-    ├─▶ BaselineData (centerPos, shoulderWidth, headHeight, wandWristBaseline)
+    ├─▶ Check left wrist position (above shoulder = armed)
+    ├─▶ Record right wrist trail when armed
+    ├─▶ Detect cast (left hand drops)
     │
     ▼
-Stroke_Capture.updateOffHandState(landmarks, baseline)
+Gesture_Recognizer.recognize(stroke)
     │
-    ├─▶ OffHandState (IDLE, READY_ARMING, READY_ARMED, CAST, CANCEL)
+    ├─▶ Calculate bounding box and aspect ratio
+    ├─▶ Calculate displacement ratio
+    ├─▶ Determine spell type
+    ├─▶ RecognizedSpell (type, confidence)
     │
     ▼
-Stroke_Capture.recordWandPosition(landmarks, baseline)
+Renderer.displaySpellResult(spell)
     │
-    ├─▶ Stroke (array of {x, y} points)
+    ├─▶ Visual output: spell name, emoji, confidence, perfect gesture shape
+    │
+    └─▶ Stage 1 checkpoint complete
+```
     │
     ▼
 Gesture_Recognizer.recognize(stroke)

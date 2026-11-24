@@ -4,31 +4,36 @@
 
 Spell Duel is a browser-based wizard duel game where players control their wizard using body poses and hand gestures detected through webcam via MediaPipe Pose. The game is designed for the Kiroween 2026 hackathon and must run on mobile devices (Chrome and Safari) in landscape orientation (HTTP for local development, HTTPS required for mobile device testing), targeting 20-30 fps on mid-range phones.
 
-The player stands waist-up in front of the camera, raises their off-hand to ready a spell, draws shapes in the air with their wand hand, and lowers the off-hand to cast. A $1 Unistroke Recognizer identifies the drawn shape and casts the corresponding spell. The opponent is an AI wizard with adaptive difficulty.
+The player stands waist-up in front of the camera, raises their left hand (off-hand) to ready a spell, draws simple directional gestures in the air with their right hand (wand hand), and lowers the left hand to cast. A custom directional gesture recognizer identifies the drawn shape based on aspect ratio and returns to start point (for circles) and casts the corresponding spell. The opponent is an AI wizard with adaptive difficulty.
+
+**Key Simplifications from Original Design:**
+- **No calibration required**: Hardcoded right hand = wand, left hand = off-hand
+- **No hand selection**: Skip directly to spell casting after initial pose detection
+- **Simple gesture recognition**: Aspect ratio-based detection instead of $1 Unistroke Recognizer
+- **Four simple gestures**: Circle (shield), horizontal line (fireball), vertical line (frost), diagonal line (lightning)
+- **Practice mode**: Interactive tutorial teaches all 4 spells before first gameplay
 
 The system is built in three stages:
-1. Pose input, wand selection, gesture recognition, and spell casting checkpoint
+1. Pose input, gesture recognition, practice mode, and spell casting checkpoint
 2. Game engine with wizard duel, AI opponent, mana and health, spell effects
 3. Visual and audio polish with procedural effects
 
 ## Glossary
 
 - **Pose_Detector**: The component that captures webcam input and processes body landmarks using MediaPipe Pose
-- **Calibrator**: The component that establishes the player's baseline pose and wand hand during setup
-- **Wand_Hand**: The hand the player uses to draw spells in the air (right or left, selected during setup, default right)
-- **Off_Hand**: The hand opposite the wand hand, used to ready and cast spells
-- **Ready_Gesture**: Raising the off-hand to shoulder height and holding it for ~300ms with hysteresis
-- **Cast_Gesture**: Lowering the off-hand after drawing, which sends the stroke to the recognizer
-- **Cancel_Gesture**: Shaking or moving the off-hand across the body, which discards the stroke with a fizzle
-- **Wand_Trail**: Visual feedback showing the path drawn by the wand hand's wrist in real time
+- **Wand_Hand**: The player's right hand, used to draw spells in the air (hardcoded, no selection)
+- **Off_Hand**: The player's left hand, used to ready and cast spells (hardcoded, no selection)
+- **Ready_Gesture**: Raising the left hand above shoulder height
+- **Cast_Gesture**: Lowering the left hand after drawing, which sends the stroke to the recognizer
+- **Wand_Trail**: Visual feedback showing the path drawn by the right wrist in real time (golden trail)
 - **Stroke**: The 2D path of the wand wrist from ready to cast, stored as an array of (x, y) points
-- **Gesture_Recognizer**: The component that uses the $1 Unistroke Recognizer to match strokes to spell templates
-- **Spell_Template**: A stored reference shape for a spell, recorded by drawing the spell 3 times and averaging
-- **Fizzle**: A failed spell cast, caused by low recognition confidence or cancellation
+- **Gesture_Recognizer**: The component that uses aspect ratio and displacement to identify spell gestures
+- **Practice_Mode**: Interactive tutorial showing animated demonstrations and requiring player to successfully cast all 4 spells
+- **Fizzle**: A failed spell cast, caused by unrecognized gesture or insufficient trail length
 - **Game_Engine**: The core system managing wizards, health, mana, spell effects, and round flow
 - **Spell_System**: The component managing spell costs, effects, counters, and resolution
 - **AI_Wizard**: The component controlling the opponent wizard's spell casting and behavior
-- **Renderer**: The component drawing wizards, spell trails, sigils, and UI elements on HTML5 Canvas
+- **Renderer**: The component drawing wizards, spell trails, and UI elements on HTML5 Canvas
 - **Audio_Manager**: The component playing procedural sound effects via Web Audio API
 - **Mana**: A resource that regenerates slowly over time and is consumed by casting spells
 - **Health**: Each wizard's life total; round ends when health reaches zero or timer expires
@@ -53,21 +58,19 @@ The system is built in three stages:
 6. WHEN a key joint has visibility below the visibility threshold, THE Pose_Detector SHALL ignore that frame
 7. THE Pose_Detector SHALL mirror the display so that the player's left corresponds to on-screen right
 
-### Requirement 2: Pose Calibration and Wand Hand Selection
+### Requirement 2: Initial Pose Detection
 
-**User Story:** As a player, I want the game to calibrate to my body and let me choose my wand hand, so that gesture detection works accurately for my physique and handedness.
+**User Story:** As a player, I want clear instructions on how to position myself, so that the game can detect my pose quickly.
 
 #### Acceptance Criteria
 
-1. WHEN setup begins, THE Calibrator SHALL display a wand hand selection screen with right hand as default
-2. WHEN the player selects a wand hand, THE Calibrator SHALL display a text prompt and stick-figure diagram showing the correct ready stance
-3. THE Calibrator SHALL detect when the player is in the ready stance (off-hand raised, wand hand relaxed)
-4. WHEN ready stance is detected, THE Calibrator SHALL display on-screen confirmation
-5. DURING the calibration period (1 second), THE Calibrator SHALL record the player's center position
-6. DURING the calibration period, THE Calibrator SHALL record the player's shoulder width
-7. DURING the calibration period, THE Calibrator SHALL record the player's head height
-8. DURING the calibration period, THE Calibrator SHALL record the wand wrist's resting baseline position
-9. THE Calibrator SHALL store baseline measurements for use by the Gesture_Recognizer
+1. WHEN the game starts, THE Application SHALL display a stick figure with both hands raised
+2. THE Application SHALL instruct the player to "Raise Both Hands"
+3. WHEN pose landmarks are detected, THE Application SHALL remove the instruction overlay
+4. THE Application SHALL use hardcoded hand assignments (right=wand, left=off-hand)
+5. THE Application SHALL skip calibration and proceed directly to gameplay or practice mode
+
+### Requirement 3 (REMOVED): Calibration is skipped in simplified design
 
 ### Requirement 3: Joint Position Smoothing
 
@@ -79,17 +82,16 @@ The system is built in three stages:
 2. FOR ALL key joints (wrists, shoulders, head), applying smoothing then extracting position SHALL produce more stable coordinates than raw landmark data (metamorphic property)
 3. WHEN joint visibility drops below threshold, THE Pose_Detector SHALL exclude that joint from smoothing calculations
 
-### Requirement 4: Ready Gesture Detection (Off-Hand Raise)
+### Requirement 4: Ready Gesture Detection (Left Hand Raise)
 
-**User Story:** As a player, I want to raise my off-hand to ready a spell, so that I can control when spell drawing begins.
+**User Story:** As a player, I want to raise my left hand to ready a spell, so that I can control when spell drawing begins.
 
 #### Acceptance Criteria
 
-1. WHEN the player's off-hand wrist is raised to shoulder height or above, THE Gesture_Recognizer SHALL detect the ready state
-2. THE Gesture_Recognizer SHALL require the off-hand to remain raised for approximately 300ms before arming
-3. THE Gesture_Recognizer SHALL apply hysteresis to the shoulder-height threshold so the ready state does not flicker
-4. WHEN the ready state is armed, THE Renderer SHALL display a glowing rune under the off-hand as confirmation
-5. THE Gesture_Recognizer SHALL expose tunable parameters for off-hand raise threshold and arming delay
+1. WHEN the player's left wrist is raised above shoulder height, THE Application SHALL detect the ready state
+2. THE Application SHALL immediately arm spell casting (no delay required)
+3. WHEN the ready state is armed, THE Renderer SHALL display a blue glowing circle under the left wrist as confirmation
+4. THE Application SHALL begin recording the wand trail when armed
 
 ### Requirement 5: Wand Trail Capture and Display
 
@@ -105,70 +107,73 @@ The system is built in three stages:
 6. WHEN the stroke ends, THE Stroke_Capture component SHALL pass the raw stroke to the Gesture_Recognizer
 7. THE Stroke_Capture component SHALL discard strokes below a minimum length or bounding-box size
 
-### Requirement 6: Cast Gesture Detection (Off-Hand Lower)
+### Requirement 6: Cast Gesture Detection (Left Hand Lower)
 
-**User Story:** As a player, I want to lower my off-hand to cast the spell I just drew, so that I can control when recognition happens.
-
-#### Acceptance Criteria
-
-1. WHEN the off-hand wrist drops below the shoulder-height threshold after being armed, THE Gesture_Recognizer SHALL detect a cast gesture
-2. WHEN a cast gesture is detected, THE Stroke_Capture component SHALL finalize the stroke and pass it to recognition
-3. THE Gesture_Recognizer SHALL clear the wand trail from the display after cast
-4. THE Gesture_Recognizer SHALL expose a tunable parameter for off-hand lower threshold
-
-### Requirement 7: Cancel Gesture Detection (Off-Hand Shake)
-
-**User Story:** As a player, I want to shake or move my off-hand across my body to cancel a spell in progress, so that I can discard bad strokes without casting.
+**User Story:** As a player, I want to lower my left hand to cast the spell I just drew, so that I can control when recognition happens.
 
 #### Acceptance Criteria
 
-1. WHILE the off-hand is raised (ready state), IF the off-hand moves horizontally beyond a threshold distance, THE Gesture_Recognizer SHALL detect a cancel gesture
-2. WHEN a cancel gesture is detected, THE Stroke_Capture component SHALL discard the current stroke
-3. THE Renderer SHALL display a fizzle effect when a stroke is canceled
-4. THE Gesture_Recognizer SHALL expose a tunable parameter for cancel horizontal distance threshold
+1. WHEN the left wrist drops below shoulder height after being armed, THE Application SHALL detect a cast gesture
+2. WHEN a cast gesture is detected, THE Application SHALL finalize the stroke and pass it to recognition
+3. THE Application SHALL clear the wand trail from the display after cast
 
-### Requirement 8: $1 Unistroke Recognizer Integration
+### Requirement 7 (REMOVED): Cancel gesture removed in simplified design
 
-**User Story:** As a player, I want the game to recognize my drawn spells accurately, so that the correct spell is cast.
+### Requirement 8: Simple Directional Gesture Recognition
 
-#### Acceptance Criteria
-
-1. THE Gesture_Recognizer SHALL implement the $1 Unistroke Recognizer algorithm
-2. THE Gesture_Recognizer SHALL resample the input stroke to a fixed number of points (e.g., 64)
-3. THE Gesture_Recognizer SHALL rotate the stroke to an indicative angle (direction from centroid to first point = 0°)
-4. THE Gesture_Recognizer SHALL scale the stroke to a reference square
-5. THE Gesture_Recognizer SHALL translate the stroke to the origin
-6. THE Gesture_Recognizer SHALL compare the normalized stroke to all spell templates using the $1 distance metric
-7. THE Gesture_Recognizer SHALL return the best match and its confidence score (1 - distance/threshold)
-8. WHEN the best match distance exceeds a rejection threshold, THE Gesture_Recognizer SHALL return a fizzle result
-9. THE Gesture_Recognizer SHALL expose a tunable parameter for the rejection distance threshold
-
-### Requirement 9: Spell Templates (Four Spells in v1)
-
-**User Story:** As a player, I want to cast four distinct spells by drawing recognizable shapes, so that I have strategic options in combat.
+**User Story:** As a player, I want the game to recognize my drawn spells quickly and accurately, so that the correct spell is cast.
 
 #### Acceptance Criteria
 
-1. THE Gesture_Recognizer SHALL recognize a circle shape as a Shield spell
-2. THE Gesture_Recognizer SHALL recognize a zigzag shape as a Lightning spell
-3. THE Gesture_Recognizer SHALL recognize a straight horizontal or vertical line as a Fireball spell
-4. THE Gesture_Recognizer SHALL recognize a V shape as a Frost Wave spell
-5. THE Gesture_Recognizer SHALL ship with default templates for all four spells
-6. THE Gesture_Recognizer SHALL provide a "Train my spells" option that records three samples per spell and overwrites defaults
-7. THE Gesture_Recognizer SHALL store trained templates in localStorage
-8. THE Gesture_Recognizer SHALL provide a "Reset to defaults" button that restores shipped templates
+1. THE Gesture_Recognizer SHALL analyze the stroke's bounding box aspect ratio
+2. THE Gesture_Recognizer SHALL calculate the displacement ratio (start-to-end distance / total path length)
+3. WHEN displacement ratio < 0.25, THE Gesture_Recognizer SHALL recognize a circle (Shield)
+4. WHEN aspect ratio > 2.0, THE Gesture_Recognizer SHALL recognize a horizontal line (Fireball)
+5. WHEN aspect ratio < 0.5, THE Gesture_Recognizer SHALL recognize a vertical line (Frost)
+6. WHEN aspect ratio is between 0.5 and 2.0, THE Gesture_Recognizer SHALL recognize a diagonal line (Lightning)
+7. THE Gesture_Recognizer SHALL return confidence score based on how well the gesture matches expected parameters
+8. WHEN stroke is too short (< 10 points), THE Gesture_Recognizer SHALL reject it as invalid
+
+### Requirement 9: Four Simple Spell Gestures
+
+**User Story:** As a player, I want to cast four distinct spells by drawing simple, intuitive gestures, so that I have strategic options in combat.
+
+#### Acceptance Criteria
+
+1. THE Gesture_Recognizer SHALL recognize a circle (returns to start) as a Shield spell
+2. THE Gesture_Recognizer SHALL recognize a horizontal line as a Fireball spell
+3. THE Gesture_Recognizer SHALL recognize a vertical line as a Frost spell
+4. THE Gesture_Recognizer SHALL recognize a diagonal line as a Lightning spell
+5. WHEN a spell is recognized, THE Renderer SHALL display a perfect green version of the gesture shape alongside the spell result
 
 ### Requirement 10: Spell Result Display
 
-**User Story:** As a player, I want to see which spell was recognized and its confidence, so that I understand what the system detected.
+**User Story:** As a player, I want to see which spell was recognized with a visual confirmation, so that I understand what the system detected and learn the gesture patterns.
 
 #### Acceptance Criteria
 
-1. WHEN a spell is recognized, THE Renderer SHALL display the spell name on screen
-2. WHEN a spell is recognized, THE Renderer SHALL display the confidence or match score
-3. WHEN a spell is recognized, THE Renderer SHALL display the drawn shape overlaid on screen for confirmation
-4. WHEN a fizzle occurs, THE Renderer SHALL display a clear "no spell" or "fizzle" result
-5. THE Renderer SHALL keep the spell result on screen for at least 1 second before clearing
+1. WHEN a spell is recognized, THE Renderer SHALL display the spell name and emoji on screen
+2. WHEN a spell is recognized, THE Renderer SHALL display the confidence percentage
+3. WHEN a spell is recognized, THE Renderer SHALL display a perfect green version of the gesture shape (circle, horizontal line, vertical line, or diagonal line)
+4. THE perfect shape SHALL be displayed above the spell result to reinforce learning
+5. THE Renderer SHALL keep the spell result on screen for at least 2 seconds before clearing
+
+### Requirement 10.5: Practice Mode Tutorial
+
+**User Story:** As a first-time player, I want to learn all 4 spells through an interactive tutorial, so that I understand how to cast spells before playing.
+
+#### Acceptance Criteria
+
+1. WHEN a first-time user clicks "Start Game", THE Application SHALL enter practice mode instead
+2. FOR EACH of the 4 spells (Shield, Fireball, Frost, Lightning), THE Application SHALL show an animated demonstration
+3. THE animated demonstration SHALL show a stick figure with left hand raised and right hand drawing the gesture with a golden trail
+4. AFTER the demonstration, THE Application SHALL transition to practice phase with a small looping reference animation in bottom-right
+5. DURING practice phase, THE Application SHALL display the player's skeleton landmarks and wand trail in real-time
+6. THE Application SHALL require the player to successfully cast each spell to proceed to the next
+7. WHEN a wrong spell is cast, THE Application SHALL allow retry without penalty
+8. AFTER completing all 4 spells, THE Application SHALL display a completion screen with spell summary
+9. THE Application SHALL save completion status to localStorage
+10. RETURNING users SHALL see both "Start Game" and "Practice Spells" buttons, with "Start Game" going directly to gameplay
 
 ### Requirement 11: Stage 1 Placeholder Spell Effects
 
