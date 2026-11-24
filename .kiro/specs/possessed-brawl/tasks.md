@@ -160,28 +160,28 @@ The implementation uses **TypeScript** for type safety, **MediaPipe Pose** for b
 
 #### Game Engine Foundation
 
-- [ ] 13. Implement Game_Engine core
-  - [ ] 13.1 Create TypeScript interfaces for game state
+- [x] 13. Implement Game_Engine core
+  - [x] 13.1 Create TypeScript interfaces for game state
     - Define GameState, WizardState, GameConfig interfaces
     - Define MatchState enum (SETUP, CALIBRATING, COUNTDOWN, FIGHTING, ROUND_END, MATCH_END)
     - Define CastResult interface
     - _Requirements: 14.1, 14.2, 18.1_
 
-  - [ ] 13.2 Implement wizard state management
+  - [x] 13.2 Implement wizard state management
     - Initialize player and AI wizards with starting health/mana
     - Track wizard positions
     - Track active shield and frost slow status
     - Track current cast and cast animation progress
     - _Requirements: 13.1, 13.2, 13.3, 13.4, 14.1, 14.2_
 
-  - [ ] 13.3 Implement health and mana tracking
+  - [x] 13.3 Implement health and mana tracking
     - Decrease mana when wizard casts spell (check cost first)
     - Decrease health when wizard takes damage
     - Regenerate mana slowly when idle (configurable rate)
     - Clamp health and mana to [0, 100] bounds
     - _Requirements: 14.1, 14.2, 14.7, 14.8, 14.9, 14.10_
 
-  - [ ] 13.4 Implement castPlayerSpell and castAISpell methods
+  - [x] 13.4 Implement castPlayerSpell and castAISpell methods
     - Check if wizard has enough mana
     - Deduct mana cost
     - Apply spell via Spell_System
