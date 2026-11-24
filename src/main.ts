@@ -849,10 +849,70 @@ export class Application {
     const emoji = spell.type === SpellType.SHIELD ? '🛡️' : spell.type === SpellType.LIGHTNING ? '⚡' : spell.type === SpellType.FIREBALL ? '🔥' : '❄️';
     
     this.spellOverlay.innerHTML = `
+      <canvas id="spell-shape-canvas" width="150" height="150" style="margin: 0 auto; display: block; margin-bottom: 10px;"></canvas>
       <div style="font-size: 64px; margin-bottom: 10px;">${emoji}</div>
       <div style="font-size: 32px; font-weight: bold; color: #ffd700; margin-bottom: 10px;">${spell.type}</div>
       <div style="font-size: 18px; color: #aaa;">Confidence: ${(spell.confidence * 100).toFixed(1)}%</div>
     `;
+    
+    // Draw the perfect shape on the canvas
+    const canvas = this.spellOverlay.querySelector('#spell-shape-canvas') as HTMLCanvasElement;
+    if (canvas) {
+      this.drawPerfectShape(canvas, spell.type);
+    }
+  }
+
+  /**
+   * Draw perfect shape representation for each spell type
+   */
+  private drawPerfectShape(canvas: HTMLCanvasElement, spellType: SpellType): void {
+    const ctx = canvas.getContext('2d');
+    if (!ctx) return;
+    
+    ctx.clearRect(0, 0, canvas.width, canvas.height);
+    
+    const centerX = canvas.width / 2;
+    const centerY = canvas.height / 2;
+    const size = 60;
+    
+    ctx.strokeStyle = '#00ff41'; // Green
+    ctx.lineWidth = 4;
+    ctx.lineCap = 'round';
+    ctx.lineJoin = 'round';
+    
+    switch (spellType) {
+      case SpellType.SHIELD:
+        // Perfect circle
+        ctx.beginPath();
+        ctx.arc(centerX, centerY, size, 0, Math.PI * 2);
+        ctx.stroke();
+        break;
+        
+      case SpellType.FIREBALL:
+        // Horizontal line
+        ctx.beginPath();
+        ctx.moveTo(centerX - size, centerY);
+        ctx.lineTo(centerX + size, centerY);
+        ctx.stroke();
+        break;
+        
+      case SpellType.FROST:
+        // Vertical line
+        ctx.beginPath();
+        ctx.moveTo(centerX, centerY - size);
+        ctx.lineTo(centerX, centerY + size);
+        ctx.stroke();
+        break;
+        
+      case SpellType.LIGHTNING:
+        // Diagonal line (top-left to bottom-right)
+        const diagonalSize = size * 0.8;
+        ctx.beginPath();
+        ctx.moveTo(centerX - diagonalSize, centerY - diagonalSize);
+        ctx.lineTo(centerX + diagonalSize, centerY + diagonalSize);
+        ctx.stroke();
+        break;
+    }
   }
   
   /**
